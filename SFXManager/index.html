@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SFX Manager</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ══════════ top bar ══════════ -->
+  <header id="topbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="18" height="18">
+          <g fill="currentColor">
+            <rect x="2"  y="9.5" width="2.4" height="5"  rx="1.2"/>
+            <rect x="6"  y="6"   width="2.4" height="12" rx="1.2"/>
+            <rect x="10" y="3"   width="2.4" height="18" rx="1.2"/>
+            <rect x="14" y="7"   width="2.4" height="10" rx="1.2"/>
+            <rect x="18" y="10"  width="2.4" height="4"  rx="1.2"/>
+          </g>
+        </svg>
+      </div>
+      <span class="brand-name">SFX&nbsp;Manager</span>
+    </div>
+
+    <div class="top-actions">
+      <div class="search" id="searchBox">
+        <svg class="search-ico" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
+          <circle cx="6.5" cy="6.5" r="4.6" fill="none" stroke="currentColor" stroke-width="1.6"/>
+          <path d="M10.2 10.2 L14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+        <input id="searchInput" type="text" placeholder="Search sounds…" autocomplete="off" spellcheck="false">
+        <button class="search-clear hidden" id="searchClear" title="Clear">✕</button>
+      </div>
+
+      <button class="icon-btn" id="btnShortcuts" title="Keyboard shortcuts — ?">
+        <svg viewBox="0 0 16 16" width="14" height="14"><path d="M5.6 5.8a2.5 2.5 0 1 1 3.7 2.2c-.8.4-1.3.9-1.3 1.8v.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="12.6" r="1" fill="currentColor"/></svg>
+      </button>
+
+      <button class="icon-btn" id="btnTheme" title="Toggle light / dark">
+        <svg class="ico-moon" viewBox="0 0 16 16" width="14" height="14"><path d="M13.5 9.6A5.8 5.8 0 0 1 6.4 2.5 5.8 5.8 0 1 0 13.5 9.6z" fill="currentColor"/></svg>
+        <svg class="ico-sun" viewBox="0 0 16 16" width="14" height="14"><circle cx="8" cy="8" r="3" fill="currentColor"/><g stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 1.2v1.6M8 13.2v1.6M1.2 8h1.6M13.2 8h1.6M3.2 3.2l1.1 1.1M11.7 11.7l1.1 1.1M12.8 3.2l-1.1 1.1M4.3 11.7l-1.1 1.1"/></g></svg>
+      </button>
+
+      <button class="avatar-btn" id="btnAbout" title="About me">
+        <span class="avatar">AN</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ══════════ main ══════════ -->
+  <div id="main">
+
+    <!-- sidebar -->
+    <aside id="sidebar">
+      <div class="sidebar-scroll">
+        <div class="section-label">Library</div>
+        <nav id="virtualNav">
+          <button class="nav-item active" data-view="all">
+            <span class="nav-ico ico-blue">
+              <svg viewBox="0 0 16 16" width="13" height="13"><g fill="currentColor"><rect x="1.5" y="6.4" width="1.8" height="3.2" rx=".9"/><rect x="4.6" y="4.2" width="1.8" height="7.6" rx=".9"/><rect x="7.7" y="2.4" width="1.8" height="11.2" rx=".9"/><rect x="10.8" y="4.8" width="1.8" height="6.4" rx=".9"/><rect x="13.9" y="6.8" width="1.6" height="2.4" rx=".8"/></g></svg>
+            </span>
+            <span class="nav-label">All Sounds</span>
+            <span class="count" id="cntAll"></span>
+          </button>
+          <button class="nav-item" data-view="favorites">
+            <span class="nav-ico ico-star">
+              <svg viewBox="0 0 16 16" width="13" height="13"><path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z" fill="currentColor"/></svg>
+            </span>
+            <span class="nav-label">Favorites</span>
+            <span class="count" id="cntFav"></span>
+          </button>
+          <button class="nav-item" data-view="recent">
+            <span class="nav-ico ico-cyan">
+              <svg viewBox="0 0 16 16" width="13" height="13"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 4.6V8l2.4 1.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            </span>
+            <span class="nav-label">Recently Used</span>
+            <span class="count" id="cntRecent"></span>
+          </button>
+        </nav>
+
+        <div class="section-head">
+          <div class="section-label">Folders</div>
+          <button class="mini-btn ghost" id="btnChooseFolder" title="Choose SFX folder">
+            <svg viewBox="0 0 16 16" width="12" height="12"><path d="M8 3.2v9.6M3.2 8h9.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+
+        <div id="tree" class="tree" role="tree"></div>
+
+        <div id="treeEmpty" class="empty-mini hidden">
+          <div class="empty-mini-ico">📁</div>
+          <p>Pick your SFX folder to<br>mirror its folder tree.</p>
+          <button class="soft-btn" id="btnChooseFolder2">Choose folder</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- content -->
+    <section id="content">
+      <div id="listHeader">
+        <div class="lh-left">
+          <h2 id="listTitle">All Sounds</h2>
+          <span class="lh-path" id="listPath" title=""></span>
+        </div>
+        <div class="lh-right">
+          <div class="tag-filter" id="tagFilter" title="Filter by colour tag">
+            <button class="chip active" data-tag="0">All</button>
+            <button class="chip" data-tag="1"><i class="dot d1"></i></button>
+            <button class="chip" data-tag="2"><i class="dot d2"></i></button>
+            <button class="chip" data-tag="3"><i class="dot d3"></i></button>
+            <button class="chip" data-tag="4"><i class="dot d4"></i></button>
+            <button class="chip" data-tag="5"><i class="dot d5"></i></button>
+            <button class="chip" data-tag="6"><i class="dot d6"></i></button>
+          </div>
+          <span class="count-pill" id="listCount">0</span>
+        </div>
+      </div>
+
+      <div id="soundList" class="sound-list" tabindex="0" aria-label="Sound list"></div>
+
+      <div id="listEmpty" class="list-empty hidden">
+        <div class="le-art" aria-hidden="true">
+          <svg viewBox="0 0 120 60" width="140" height="70">
+            <g fill="var(--accent)" opacity=".55">
+              <rect x="6"  y="24" width="5" height="12" rx="2.5"/>
+              <rect x="17" y="18" width="5" height="24" rx="2.5"/>
+              <rect x="28" y="10" width="5" height="40" rx="2.5"/>
+              <rect x="39" y="20" width="5" height="20" rx="2.5"/>
+              <rect x="50" y="6"  width="5" height="48" rx="2.5"/>
+              <rect x="61" y="16" width="5" height="28" rx="2.5"/>
+              <rect x="72" y="22" width="5" height="16" rx="2.5"/>
+              <rect x="83" y="12" width="5" height="36" rx="2.5"/>
+              <rect x="94" y="20" width="5" height="20" rx="2.5"/>
+              <rect x="105" y="25" width="5" height="10" rx="2.5"/>
+            </g>
+          </svg>
+        </div>
+        <p id="listEmptyText">Choose your SFX folder to get started.</p>
+        <button class="soft-btn" id="btnChooseFolder3">Choose folder</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- ══════════ player ══════════ -->
+  <footer id="player">
+    <div class="wave-row">
+      <button id="btnPlay" class="play-btn" title="Play / pause (Space)" disabled>
+        <svg class="ico-play" viewBox="0 0 16 16" width="14" height="14"><path d="M4.5 2.8v10.4L13.4 8z" fill="currentColor"/></svg>
+        <svg class="ico-pause" viewBox="0 0 16 16" width="14" height="14"><g fill="currentColor"><rect x="3.6" y="2.8" width="3.2" height="10.4" rx="1.1"/><rect x="9.2" y="2.8" width="3.2" height="10.4" rx="1.1"/></g></svg>
+        <span class="eq hidden" aria-hidden="true"><i></i><i></i><i></i></span>
+      </button>
+
+      <div class="np-meta">
+        <div class="np-name" id="npName">Select a sound to preview</div>
+        <div class="np-sub">
+          <span id="npTime">0:00.00</span><span class="np-sep">/</span><span id="npDur">0:00.00</span>
+          <span class="np-badge hidden" id="npDecode">Decoding…</span>
+        </div>
+      </div>
+
+      <div class="wave-tools">
+        <button class="mini-btn" id="btnZoomOut" title="Zoom out (−)">−</button>
+        <span class="zoom-label" id="zoomLabel">1×</span>
+        <button class="mini-btn" id="btnZoomIn" title="Zoom in (+)">+</button>
+        <button class="mini-btn" id="btnLoop" title="Loop (L)">
+          <svg viewBox="0 0 16 16" width="12" height="12"><path d="M12.5 5.5A5 5 0 0 0 3.6 6.2M3.5 10.5a5 5 0 0 0 8.9-.7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M12.7 2.8v2.9h-2.9M3.3 13.2v-2.9h2.9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="wave-wrap">
+      <canvas id="waveform"></canvas>
+      <div class="wave-hint" id="waveHint">Waveform preview · click to scrub</div>
+    </div>
+
+    <div class="ctrl-row">
+      <div class="ctrl-group vol">
+        <svg viewBox="0 0 16 16" width="13" height="13" class="ctrl-ico"><path d="M2.5 6.2h2.2L7.6 3.6v8.8L4.7 9.8H2.5z" fill="currentColor"/><path class="waves" d="M9.8 6.1a2.8 2.8 0 0 1 0 3.8M11.6 4.4a5.2 5.2 0 0 1 0 7.2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        <input type="range" id="volSlider" min="0" max="100" step="1" value="85" title="Preview volume">
+      </div>
+
+      <div class="ctrl-group spd">
+        <svg viewBox="0 0 16 16" width="13" height="13" class="ctrl-ico"><path d="M3 8h10M9.5 4.5 13 8l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <input type="range" id="speedSlider" min="50" max="200" step="5" value="100" title="Preview speed">
+        <span class="spd-label" id="speedLabel">1.0×</span>
+      </div>
+
+      <div class="ctrl-flex"></div>
+
+      <button id="btnStop" class="ctrl-icon" title="Stop preview (Esc)" disabled>
+        <svg viewBox="0 0 16 16" width="11" height="11"><rect x="3.4" y="3.4" width="9.2" height="9.2" rx="1.6" fill="currentColor"/></svg>
+      </button>
+
+      <button id="btnAdd" class="primary-btn" disabled>
+        <svg viewBox="0 0 16 16" width="13" height="13"><path d="M8 3.4v9.2M3.4 8h9.2" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+        <span class="pb-label">Add at Playhead</span>
+        <span class="pb-chip" id="playheadChip">00:00:00:00</span>
+      </button>
+    </div>
+  </footer>
+
+  <!-- ══════════ status bar ══════════ -->
+  <div id="statusbar">
+    <span class="ae-dot" id="aeDot" title="After Effects connection"></span>
+    <span id="aeState">Playhead 00:00:00:00</span>
+    <span class="sb-spacer"></span>
+    <span class="sb-hints">⏎ add&nbsp;&nbsp;·&nbsp;&nbsp;space preview&nbsp;&nbsp;·&nbsp;&nbsp;F star&nbsp;&nbsp;·&nbsp;&nbsp;? help</span>
+  </div>
+</div>
+
+<!-- ══════════ context menu ══════════ -->
+<div id="ctxMenu" class="ctx-menu hidden" role="menu"></div>
+
+<!-- ══════════ toasts ══════════ -->
+<div id="toastHost" class="toast-host"></div>
+
+<!-- ══════════ drag hint ══════════ -->
+<div id="dragHint" class="drag-hint hidden">
+  <svg viewBox="0 0 16 16" width="15" height="15"><path d="M2 4.5h12M2 8h8M2 11.5h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M12.4 10.2 14.6 12l-2.2 1.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  Drop on the AE timeline to place at the playhead
+</div>
+
+<!-- ══════════ about modal ══════════ -->
+<div class="overlay hidden" id="aboutOverlay">
+  <div class="dialog about-dialog" role="dialog" aria-label="About me">
+    <button class="dialog-close" data-close="aboutOverlay">✕</button>
+
+    <div class="about-hero">
+      <div class="about-avatar">AN<span class="about-avatar-ring"></span></div>
+      <h3>Anamoul Houqe Nadim</h3>
+      <p class="about-role">Creator of SFX Manager · Motion Designer</p>
+    </div>
+
+    <div class="about-body">
+      <p class="about-bio">
+        I build tools that speed up creative workflows. SFX Manager was made to keep
+        sound effects one click away — preview, tag and drop them right where the
+        playhead sits.
+      </p>
+
+      <div class="about-links">
+        <a class="social-card" id="linkInsta" href="#" target="_blank" rel="noopener">
+          <span class="social-ico insta">
+            <svg viewBox="0 0 24 24" width="16" height="16"><rect x="3" y="3" width="18" height="18" rx="5.4" fill="none" stroke="currentColor" stroke-width="1.9"/><circle cx="12" cy="12" r="4.1" fill="none" stroke="currentColor" stroke-width="1.9"/><circle cx="17.4" cy="6.6" r="1.3" fill="currentColor"/></svg>
+          </span>
+          <span class="social-meta">
+            <b>Instagram</b>
+            <i>instagram.com/nadim.3x</i>
+          </span>
+          <svg class="social-arrow" viewBox="0 0 16 16" width="13" height="13"><path d="M5 11 11 5M6 5h5v5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+      </div>
+
+      <div class="about-version">SFX Manager v1.0 · built with a blue accent #066CE7</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ shortcuts modal ══════════ -->
+<div class="overlay hidden" id="helpOverlay">
+  <div class="dialog help-dialog" role="dialog" aria-label="Keyboard shortcuts">
+    <button class="dialog-close" data-close="helpOverlay">✕</button>
+    <h3 class="dialog-title">Keyboard Shortcuts</h3>
+    <div class="shortcut-grid">
+      <div class="sc-col">
+        <div class="sc-head">Navigation</div>
+        <div class="sc-row"><span>Move selection</span><kbd>↑</kbd><kbd>↓</kbd></div>
+        <div class="sc-row"><span>Open folder / toggle</span><kbd>→</kbd><kbd>←</kbd></div>
+        <div class="sc-row"><span>Search</span><kbd>⌘/Ctrl</kbd><kbd>F</kbd></div>
+        <div class="sc-row"><span>Clear search</span><kbd>Esc</kbd></div>
+      </div>
+      <div class="sc-col">
+        <div class="sc-head">Preview</div>
+        <div class="sc-row"><span>Play / pause</span><kbd>Space</kbd></div>
+        <div class="sc-row"><span>Stop</span><kbd>Esc</kbd></div>
+        <div class="sc-row"><span>Seek</span><kbd>←</kbd><kbd>→</kbd></div>
+        <div class="sc-row"><span>Seek further</span><kbd>⇧</kbd><kbd>←/→</kbd></div>
+        <div class="sc-row"><span>Zoom waveform</span><kbd>+</kbd><kbd>−</kbd></div>
+        <div class="sc-row"><span>Loop</span><kbd>L</kbd></div>
+      </div>
+      <div class="sc-col">
+        <div class="sc-head">Library</div>
+        <div class="sc-row"><span>Add at playhead</span><kbd>↵</kbd></div>
+        <div class="sc-row"><span>Toggle favorite</span><kbd>F</kbd></div>
+        <div class="sc-row"><span>Colour tag 1–6</span><kbd>1…6</kbd></div>
+        <div class="sc-row"><span>Context menu</span><kbd>⌘/Ctrl</kbd><kbd>⏎</kbd></div>
+        <div class="sc-row"><span>This window</span><kbd>?</kbd></div>
+      </div>
+    </div>
+    <p class="dialog-foot">Tip — drag a sound straight onto the timeline, or double-click a row to add it at the playhead.</p>
+  </div>
+</div>
+
+<script src="js/mock.js"></script>
+<script src="js/bridge.js"></script>
+<script src="js/store.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

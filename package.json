@@ -1,0 +1,13 @@
+{
+  "name": "sfx-manager-3",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SFX Manager — a premium sound-effects panel for Adobe After Effects (CEP extension) by Anamoul Houqe Nadim",
+  "scripts": {
+    "test": "node test/smoke.test.js",
+    "preview": "node preview/server.js"
+  },
+  "devDependencies": {
+    "jsdom": "^30.1.1"
+  }
+}

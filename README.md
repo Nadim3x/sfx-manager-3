@@ -1,1 +1,148 @@
-# sfx-manager-3
+# 🎛 SFX Manager — for Adobe After Effects
+
+A fully-featured, premium **sound-effects panel** for After Effects with a polished
+macOS-style interface and a blue `#066CE7` accent.
+
+> **Why a panel (.jsx alone can't do this)** — real waveform decoding, in-panel audio
+> playback with volume/speed, animated Apple-style UI and drag-to-timeline all require
+> a CEP panel (HTML/CSS/JS + ExtendScript). It installs with **one double-click** and
+> shows up in **Window ▸ SFX Manager**, exactly like a dockable script panel.
+
+---
+
+## ✨ Features
+
+| You asked for | How it works |
+|---|---|
+| **Folder tree = my real SFX folder** | Pick your SFX folder once — the sidebar mirrors its exact folder tree, lazily expanded |
+| **Add at playhead** | Blue **＋ Add at Playhead** button (or `⏎`, or double-click a row) imports the sound and places it starting exactly at the current time |
+| **Waveform preview** | Real decoded waveform on canvas — click to scrub, playhead line follows playback |
+| **Playback preview** | Web Audio engine — and it **auto-plays the moment you select a sound**, no play button needed |
+| **Premium Apple UI** | Frosted-glass bars, hairline borders, springy hover states, staggered list animations, light/dark themes |
+| **Blue accent `#066ce7`** | Used across buttons, glows, active states and the waveform itself |
+| **Drag onto timeline** | Drag a row onto the comp timeline (Adobe's `com.adobe.cep.dnd.file.0` payload) — the Add button is the always-works fallback |
+| **Favorites** | Star any sound (`F`), dedicated ★ Favorites view |
+| **Waveform zoom** | `+` / `−` buttons or `⌘/Ctrl + scroll`, horizontal pan when zoomed |
+| **Category / colour tags** | 6 colour tags via right-click or keys `1–6`, plus colour-chip filters |
+| **Keyboard shortcuts** | Full scheme, on-screen reference with `?` |
+| **Recently used** | Every preview/add is remembered — Recently Used view |
+| **Preview volume & speed** | Sliders for volume (0–100%) and speed (0.5×–2.0×), loop toggle |
+| **About me button** | Avatar button (top-right) → **Anamoul Houqe Nadim** + Instagram [`@nadim.3x`](https://instagram.com/nadim.3x) |
+
+Also included: instant search across the whole library (`⌘/Ctrl+F`), folder & file
+durations parsed straight from WAV/AIFF headers, live playhead timecode readout from
+After Effects, undo-grouped imports (one `⌘Z` reverts an add), toast notifications,
+context menu with reveal/copy-path.
+
+---
+
+## 📦 Install
+
+### macOS
+1. Double-click **`install_mac.command`**
+   (if blocked by Gatekeeper: right-click ▸ Open, or run `chmod +x install_mac.command`)
+2. Quit After Effects completely (`⌘Q`) and reopen it
+3. **Window ▸ SFX Manager**
+
+### Windows
+1. Double-click **`install_win.bat`**
+2. Quit After Effects completely and reopen it
+3. **Window ▸ SFX Manager**
+
+> The installers copy the panel into your CEP extensions folder and enable Adobe's
+> `PlayerDebugMode` (required for community panels — safe and reversible).
+
+### Manual install
+Copy the `SFXManager/` folder to:
+
+- **macOS** → `~/Library/Application Support/Adobe/CEP/extensions/com.nadim.sfxmanager`
+- **Windows** → `%APPDATA%\Adobe\CEP\extensions\com.nadim.sfxmanager`
+
+…then enable PlayerDebugMode (the installers do this for CSXS 7–12) and restart AE.
+
+**Requirements:** After Effects **2021 or newer** (18.0+), macOS or Windows.
+
+---
+
+## 🕹 Keyboard shortcuts
+
+| Action | Keys |
+|---|---|
+| Move selection (auto-previews) | `↑` `↓` |
+| **Add at playhead** | `⏎` |
+| Play / pause preview | `Space` |
+| Stop preview | `Esc` |
+| Seek ±0.1s / ±1s | `←` `→` / `⇧←` `⇧→` |
+| Waveform zoom | `+` `−` (or `⌘/Ctrl + scroll`) |
+| Toggle loop | `L` |
+| Toggle favorite | `F` |
+| Colour tag 1–6 (0 = clear) | `1 … 6` |
+| Search | `⌘/Ctrl + F` |
+| Context menu | right-click (or `⌘/Ctrl + ⏎`) |
+| Shortcuts reference | `?` |
+
+---
+
+## 🧪 Try the UI in your browser (no After Effects needed)
+
+```bash
+npm run preview     # → http://localhost:8756
+```
+
+The panel runs against a demo SFX library with synthesized audio — real waveform,
+real playback, every animation and view fully interactive.
+
+```bash
+npm test            # 72-check headless integration test of the whole UI
+```
+
+---
+
+## 🧩 How it works
+
+```
+SFXManager/
+├── CSXS/manifest.xml      CEP manifest (panel registration, Node.js enabled)
+├── index.html             panel UI
+├── css/styles.css         macOS-style design system (dark + light, #066CE7)
+├── js/
+│   ├── app.js             controller: tree, list, search, tags, shortcuts, DnD
+│   ├── audio.js           Web Audio playback + waveform decode/render (zoom/scrub)
+│   ├── bridge.js          CEP ⇄ ExtendScript ⇄ Node-fs communication layer
+│   ├── store.js           settings, favorites, recents, colour tags (persisted)
+│   └── mock.js            browser-preview environment (demo library)
+└── jsx/hostscript.jsx     ExtendScript: playhead readout, import + place at time
+```
+
+- **Timeline placement** runs as one undo group: reuses an already-imported file when
+  possible, adds the layer at `comp.time`, enables its audio and selects it.
+- **Waveforms** are decoded with Web Audio (`decodeAudioData`); durations for WAV/AIFF
+  show instantly from the file header while the list is still loading.
+- **Preview** never touches your project — sounds audition in the panel only.
+
+---
+
+## 🔧 Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| Panel not in the Window menu | Re-run the installer (PlayerDebugMode), fully quit & reopen AE |
+| “No composition open” | Select/open a comp in After Effects |
+| A codec won't preview | Some exotic codecs can't play in-panel — **Add at Playhead** still works (AE decodes everything) |
+| Drag onto timeline ignored by your OS/CCP build | Use **＋ Add at Playhead** / `⏎` — identical result, zero placement errors |
+| macOS can't read your SFX folder | System Settings ▸ Privacy & Security ▸ **Full Disk Access** ▸ enable After Effects |
+| Preview feels late | Lower folder depth first-load — the tree loads lazily by design |
+
+---
+
+## 👤 About me
+
+**Anamoul Houqe Nadim** — creator of SFX Manager
+
+- Instagram: [instagram.com/nadim.3x](https://instagram.com/nadim.3x)
+
+Use the **AN avatar** in the panel's top-right corner anytime for this info.
+
+---
+
+*Built with a blue accent `#066CE7`.*
