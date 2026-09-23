@@ -18,6 +18,7 @@ var Store = (function () {
         viewMode: "list",         // list | grid
         tone: "",                 // "" = default palette | "ink" = flat #0b0b0d
         accent: "#066ce7",        // UI accent colour (#066CE7 = default blue)
+        bgColor: "",              // "" = auto (follow theme) | #rrggbb override
         zoom: 1,                  // waveform zoom level
         favorites: {},            // path -> timestamp
         recent: [],               // [{path, name, at}] newest first

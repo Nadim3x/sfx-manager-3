@@ -1307,8 +1307,63 @@
         }
         var picker = $("accentCustom");
         if (picker && picker.value !== hex) picker.value = hex;
+        var hexField = $("accentHex");
+        if (hexField && document.activeElement !== hexField) hexField.value = hex.toUpperCase();
 
         try { AudioEngine.Waveform.draw(); } catch (e) {}
+    }
+
+    function applyBg(hex, persist) {
+        hex = normalizeHex(hex) || "";
+        var root = document.documentElement;
+        if (hex) root.style.setProperty("--bg", hex);
+        else root.style.removeProperty("--bg");
+        var swatches = document.querySelectorAll("#bgRow .bg-swatch");
+        for (var i = 0; i < swatches.length; i++) {
+            var want = normalizeHex(swatches[i].getAttribute("data-bg")) || "";
+            swatches[i].classList.toggle("active", want === hex);
+        }
+        var picker = $("bgCustom");
+        if (picker && hex && picker.value !== hex) picker.value = hex;
+        var hf = $("bgHex");
+        if (hf && document.activeElement !== hf) hf.value = hex ? hex.toUpperCase() : "";
+        if (persist) Store.set({ bgColor: hex });
+    }
+
+    function wireHexField(id, apply) {
+        var f = $(id);
+        if (!f) return;
+        f.addEventListener("focus", function () { f.classList.remove("bad"); });
+        function commit() {
+            var v = normalizeHex(f.value);
+            if (v) {
+                f.classList.remove("bad");
+                apply(v);
+            } else {
+                f.classList.add("bad");
+            }
+        }
+        f.addEventListener("change", commit);
+        f.addEventListener("keydown", function (ev) {
+            if (ev.key === "Enter") { commit(); f.blur(); }
+        });
+    }
+
+    function wireBg() {
+        var row = $("bgRow");
+        if (row) {
+            row.addEventListener("click", function (ev) {
+                var b = ev.target.closest(".bg-swatch");
+                if (!b) return;
+                applyBg(b.getAttribute("data-bg") || "", true);
+            });
+        }
+        var picker = $("bgCustom");
+        if (picker) {
+            picker.addEventListener("input", function () { applyBg(picker.value, true); });
+        }
+        wireHexField("bgHex", function (v) { applyBg(v, true); });
+        wireHexField("accentHex", function (v) { applyAccent(v, true); });
     }
 
     function wireAccent() {
@@ -1367,6 +1422,7 @@
     function wireChrome() {
         wireViewToggle();
         wireTone();
+        wireBg();
         $("btnTheme").addEventListener("click", function () {
             var next = Store.get().theme === "light" ? "dark" : "light";
             Store.set({ theme: next });
@@ -1412,6 +1468,7 @@
         applyAccent(st.accent || "#066ce7", false);
         applyViewMode(st.viewMode);
         applyTone(st.tone);
+        applyBg(st.bgColor);
         wirePlayer();
         wireKeyboard();
         wireSearch();

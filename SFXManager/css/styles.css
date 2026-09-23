@@ -1735,3 +1735,24 @@ kbd {
   }
   #soundList.grid-view .sound-row { min-height: 126px; padding: 40px 9px 32px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   Settings — hex entry fields (Buttons / Background color)
+   ═══════════════════════════════════════════════════════════════ */
+
+.hex-field {
+  width: 92px; height: 27px; flex: 0 0 auto;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface-2); color: var(--text);
+  padding: 0 9px; outline: none;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px; font-weight: 600; letter-spacing: .6px;
+  text-transform: uppercase;
+  transition: border-color .15s, box-shadow .15s;
+}
+.hex-field::placeholder { color: var(--text-3); text-transform: none; letter-spacing: .3px; }
+.hex-field:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.hex-field.bad { border-color: #ff453a; box-shadow: 0 0 0 3px rgba(255, 69, 58, .18); }

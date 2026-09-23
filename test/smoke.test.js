@@ -358,7 +358,7 @@ async function main() {
   click($("btnSettings"));
   check("settings modal opens", !$("settingsOverlay").classList.contains("hidden"));
   check("settings shows the name", $("settingsAbout").textContent.indexOf("Anamoul Houqe Nadim") >= 0);
-  check("settings shows v1.0.9 badge (verify install)", $("settingsAbout").textContent.indexOf("v1.0.9") >= 0,
+  check("settings shows v1.1.0 badge (verify install)", $("settingsAbout").textContent.indexOf("v1.1.0") >= 0,
     $("settingsAbout").textContent);
   const igBtn = $("btnInstagram");
   const igLabel = igBtn ? igBtn.textContent.replace(/\s+/g, " ").trim() : "";
@@ -418,6 +418,50 @@ async function main() {
   click($("toneRow").querySelector('.tone-swatch[data-tone=""]'));
   check("default tone restored", !document.documentElement.getAttribute("data-tone") &&
     JSON.parse(window.localStorage.getItem("sfxm.v1")).tone === "");
+
+  // new settings panel — Buttons Color + Background Color (swatches + hex entry)
+  console.log("\n── buttons / background color ──");
+  const btnLabel = $("accentRow").closest(".set-section").querySelector(".set-label").textContent;
+  check("buttons row labelled Buttons Color", btnLabel === "Buttons Color", JSON.stringify(btnLabel));
+  check("buttons hex field exists", !!$("accentHex"));
+  const ah = $("accentHex");
+  ah.value = "zzzz";
+  ah.dispatchEvent(new window.Event("change", { bubbles: true }));
+  check("invalid buttons hex rejected", ah.classList.contains("bad") &&
+    document.documentElement.getAttribute("data-accent") === "#066ce7",
+    document.documentElement.getAttribute("data-accent"));
+  ah.value = "#30d158";
+  ah.dispatchEvent(new window.Event("change", { bubbles: true }));
+  check("typed hex applies buttons color",
+    document.documentElement.getAttribute("data-accent") === "#30d158" &&
+    !ah.classList.contains("bad") &&
+    JSON.parse(window.localStorage.getItem("sfxm.v1")).accent === "#30d158",
+    document.documentElement.getAttribute("data-accent"));
+  click(document.querySelector('.accent-swatch[data-accent="#066ce7"]'));
+  check("hex field follows swatch", ah.value === "#066CE7", JSON.stringify(ah.value));
+
+  const bgLabel = $("bgRow").closest(".set-section").querySelector(".set-label").textContent;
+  check("background row labelled Background Color", bgLabel === "Background Color", JSON.stringify(bgLabel));
+  check("background swatches + hex exist",
+    $("bgRow").querySelectorAll(".bg-swatch").length >= 5 && !!$("bgHex") && !!$("bgCustom"));
+  check("background defaults to Auto", !document.documentElement.style.getPropertyValue("--bg") &&
+    JSON.parse(window.localStorage.getItem("sfxm.v1")).bgColor === "");
+  click($("bgRow").querySelector('.bg-swatch[data-bg="#000000"]'));
+  check("bg swatch applies hex", document.documentElement.style.getPropertyValue("--bg") === "#000000",
+    document.documentElement.style.getPropertyValue("--bg"));
+  check("bg colour persisted", JSON.parse(window.localStorage.getItem("sfxm.v1")).bgColor === "#000000");
+  const bh = $("bgHex");
+  bh.value = "#123456";
+  bh.dispatchEvent(new window.Event("change", { bubbles: true }));
+  check("typed hex applies background", document.documentElement.style.getPropertyValue("--bg") === "#123456" &&
+    !bh.classList.contains("bad"), document.documentElement.style.getPropertyValue("--bg"));
+  bh.value = "nope";
+  bh.dispatchEvent(new window.Event("change", { bubbles: true }));
+  check("invalid bg hex rejected", bh.classList.contains("bad") &&
+    document.documentElement.style.getPropertyValue("--bg") === "#123456");
+  click($("bgRow").querySelector('.bg-swatch[data-bg=""]'));
+  check("Auto resets background", !document.documentElement.style.getPropertyValue("--bg") &&
+    JSON.parse(window.localStorage.getItem("sfxm.v1")).bgColor === "");
   check("back to default SFX blue", document.documentElement.getAttribute("data-accent") === "#066ce7");
   click($("settingsOverlay").querySelector("[data-close]"));
   check("settings modal closes", $("settingsOverlay").classList.contains("hidden"));

@@ -251,7 +251,7 @@
 
     <!-- ▶ accent colour -->
     <div class="set-section">
-      <div class="set-label">Accent colour</div>
+      <div class="set-label">Buttons Color</div>
       <div class="swatch-row" id="accentRow">
         <button class="accent-swatch" data-accent="#066ce7" style="--sw:#066ce7" title="Default blue — #066CE7"></button>
         <button class="accent-swatch" data-accent="#0a84ff" style="--sw:#0a84ff" title="#0A84FF"></button>
@@ -264,8 +264,31 @@
         <label class="accent-custom" title="Custom colour…">
           <input type="color" id="accentCustom" value="#066ce7">
         </label>
+        <input class="hex-field" id="accentHex" type="text" spellcheck="false" maxlength="7"
+               placeholder="#066CE7" value="#066CE7" aria-label="Buttons colour hex code">
       </div>
-      <div class="set-hint">Applies instantly across the panel and waveform. Default is SFX blue <code>#066CE7</code>.</div>
+      <div class="set-hint">Pick a swatch or type a hex like <code>#066CE7</code> — buttons, highlights and waveforms.</div>
+    </div>
+
+    <!-- ▶ background colour -->
+    <div class="set-section">
+      <div class="set-label">Background Color</div>
+      <div class="swatch-row" id="bgRow">
+        <button class="accent-swatch bg-swatch auto active" data-bg=""
+                style="--sw:linear-gradient(135deg,#f0f0f3 49%,#131316 51%)"
+                title="Auto — follow the theme"></button>
+        <button class="accent-swatch bg-swatch" data-bg="#000000" style="--sw:#000000" title="#000000 — pure black"></button>
+        <button class="accent-swatch bg-swatch" data-bg="#0b0b0d" style="--sw:#0b0b0d" title="#0B0B0D — ink"></button>
+        <button class="accent-swatch bg-swatch" data-bg="#111116" style="--sw:#111116" title="#111116"></button>
+        <button class="accent-swatch bg-swatch" data-bg="#17171d" style="--sw:#17171d" title="#17171D"></button>
+        <button class="accent-swatch bg-swatch" data-bg="#f0f0f3" style="--sw:#f0f0f3" title="#F0F0F3 — light paper"></button>
+        <label class="accent-custom" title="Custom background…">
+          <input type="color" id="bgCustom" value="#0b0b0d">
+        </label>
+        <input class="hex-field" id="bgHex" type="text" spellcheck="false" maxlength="7"
+               placeholder="auto" aria-label="Background colour hex code">
+      </div>
+      <div class="set-hint">Pick a swatch, choose a colour, or type a hex. <strong>Auto</strong> follows the theme.</div>
     </div>
 
     <!-- ▶ tone — 2nd background tone -->
@@ -287,7 +310,7 @@
       <div class="set-avatar">AN</div>
       <div class="set-about-info">
         <div class="set-about-name">Anamoul Houqe Nadim</div>
-        <div class="set-about-sub">Creator of SFX Manager · v1.0.9</div>
+        <div class="set-about-sub">Creator of SFX Manager · v1.1.0</div>
       </div>
       <button class="ig-btn" id="btnInstagram" title="Open Instagram in your browser">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.2" y="3.2" width="17.6" height="17.6" rx="5.2"/><circle cx="12" cy="12" r="4.2"/><circle cx="17.3" cy="6.7" r="1.25" fill="currentColor" stroke="none"/></svg>
