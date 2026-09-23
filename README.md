@@ -40,17 +40,17 @@ context menu with reveal/copy-path.
 
 ### Option A — ZXP package (recommended, signed)
 
-The repo ships a signed **`SFXManager-1.0.1.zxp`** (UCF + W3C XML-DSig,
+The repo ships a signed **`SFXManager-1.0.2.zxp`** (UCF + W3C XML-DSig,
 cert: *Anamoul Houqe Nadim · valid to 2126*).
 
 1. Install any ZXP installer once:
    [Anastasiy’s Extension Manager](https://install.anastasiy.com/) (mac/win) or
    [ZXP Installer by aescripts](https://aescripts.com/learn/zxp-installer/)
-2. Drop **`SFXManager-1.0.1.zxp`** onto it
+2. Drop **`SFXManager-1.0.2.zxp`** onto it
    (self-signed cert → the installer asks you to confirm “unknown publisher” — expected)
 3. Restart After Effects → **Window ▸ SFX Manager**
 
-CLI alternative: `ExManCmd --install SFXManager-1.0.1.zxp`
+CLI alternative: `ExManCmd --install SFXManager-1.0.2.zxp`
 
 ### Option B — one-click folder install
 **macOS:** double-click **`install_mac.command`** · **Windows:** double-click **`install_win.bat`**
@@ -71,9 +71,9 @@ Copy the `SFXManager/` folder to:
 
 ### Re-signing after changes (maintainers)
 ```bash
-python3 tools/zxp.py sign  SFXManager  SFXManager-1.0.1.zxp  \
+python3 tools/zxp.py sign  SFXManager  SFXManager-1.0.2.zxp  \
         certs/SFXManager-signing.key.pem  certs/SFXManager-signing.cert.pem
-python3 tools/zxp.py verify SFXManager-1.0.1.zxp     # ← always run this
+python3 tools/zxp.py verify SFXManager-1.0.2.zxp     # ← always run this
 ```
 The identity lives in `certs/SFXManager-signing.p12` (password `nadim.3x`, git-ignored —
 keep a backup). With it you can also re-create packages with Adobe’s official

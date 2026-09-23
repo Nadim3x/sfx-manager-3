@@ -251,6 +251,7 @@
         Store.set({ lastFolder: path });
         setNavActive(null);
         markSelectedTreeNode();
+        closeDrawer();
         loadFolderList(path);
     }
 
@@ -977,6 +978,7 @@
             if (ev.key === "Escape") {
                 if (anyOverlayOpen()) { closeOverlays(); return; }
                 if (!$("ctxMenu").classList.contains("hidden")) { closeContextMenu(); return; }
+                if (drawerOpen()) { closeDrawer(); return; }
                 if (inInput && ev.target.value) {
                     ev.target.value = "";
                     clearSearch();
@@ -1192,6 +1194,20 @@
         });
     }
 
+    /* ═══════════════════ drawer (narrow / vertical layout) ═══════════════════ */
+
+    function drawerOpen() {
+        return $("sidebar").classList.contains("open");
+    }
+    function closeDrawer() {
+        $("sidebar").classList.remove("open");
+        $("drawerShade").classList.remove("show");
+    }
+    function toggleDrawer() {
+        var open = $("sidebar").classList.toggle("open");
+        $("drawerShade").classList.toggle("show", open);
+    }
+
     /* ═══════════════════ misc UI ═══════════════════ */
 
     function wireChrome() {
@@ -1202,10 +1218,14 @@
             AudioEngine.Waveform.draw();
         });
 
+        $("btnSidebar").addEventListener("click", toggleDrawer);
+        $("drawerShade").addEventListener("click", closeDrawer);
+
         var navs = document.querySelectorAll("#virtualNav .nav-item");
         for (var i = 0; i < navs.length; i++) {
             navs[i].addEventListener("click", function () {
                 loadVirtual(this.dataset.view);
+                closeDrawer();
             });
         }
 

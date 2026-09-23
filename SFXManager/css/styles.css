@@ -1383,3 +1383,143 @@ kbd {
 
 /* focus ring for accessibility when keyboard navigating */
 .sound-list:focus-visible { outline: none; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   RESPONSIVE — vertical / narrow panels (≈9:16, e.g. 335×568)
+   Under 560px wide the sidebar becomes a slide-in drawer and the
+   player/header stack so every control stays reachable.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* desktop: these only exist in narrow mode */
+#btnSidebar { display: none; }
+
+#drawerShade {
+  display: none;
+  position: fixed;
+  left: 0; right: 0; top: 50px; bottom: 0;
+  background: rgba(0, 0, 0, .42);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .28s var(--ease);
+  z-index: 50;
+}
+#drawerShade.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* overflow guards everywhere (narrow floating windows) */
+.toast, .drag-hint { max-width: calc(100vw - 28px); }
+.dialog { max-height: calc(100vh - 36px); overflow-y: auto; }
+
+@media (max-width: 559px) {
+  /* ── top bar ── */
+  #btnSidebar { display: grid; }
+
+  .search {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 64px;
+  }
+  .search:focus-within { width: auto; }
+
+  /* ── sidebar → slide-in drawer ── */
+  #sidebar {
+    position: fixed;
+    left: 0;
+    top: 50px;
+    bottom: 0;
+    width: min(252px, 84vw);
+    flex: 0 0 auto;
+    z-index: 60;
+    transform: translateX(-105%);
+    transition: transform .3s var(--ease);
+    box-shadow: none;
+    background: var(--surface);
+    border-right: 1px solid var(--border-strong);
+  }
+  #sidebar.open {
+    transform: translateX(0);
+    box-shadow: 14px 0 44px rgba(0, 0, 0, .45);
+  }
+
+  #drawerShade { display: block; }
+
+  /* ── content takes the full width ── */
+  #content { width: 100%; }
+
+  /* ── stacked list header ── */
+  #listHeader {
+    flex-wrap: wrap;
+    gap: 7px;
+    padding: 9px 12px 8px;
+  }
+  .lh-left { flex: 1 1 100%; min-width: 0; }
+  .lh-left h2 { font-size: 13.5px; }
+  .lh-path { max-width: 100%; }
+  .lh-right {
+    flex: 0 1 auto;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  /* ── player: controls wrap, Add button gets its own full row ── */
+  #player { padding: 8px 10px 9px; }
+
+  .wave-row { gap: 8px; margin-bottom: 6px; }
+  .wave-tools { gap: 4px; }
+  .zoom-label { min-width: 20px; }
+
+  .ctrl-row {
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    margin-top: 8px;
+  }
+  .ctrl-flex { display: none; }
+  .ctrl-group { flex: 0 1 auto; min-width: 0; }
+  .ctrl-group.vol input[type="range"],
+  .ctrl-group.spd input[type="range"] { width: 64px; }
+
+  #btnStop { margin-left: auto; }
+
+  #btnAdd {
+    flex: 1 1 100%;
+    justify-content: center;
+    order: 10;
+    height: 36px;
+  }
+
+  /* ── status bar ── */
+  .sb-hints { display: none; }
+  #aeState {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  /* drag hint fits small width */
+  .drag-hint {
+    bottom: 150px;
+    font-size: 11.5px;
+    padding: 9px 13px;
+    text-align: center;
+  }
+}
+
+/* ── very narrow (≤ 430px): drop the wordmark ── */
+@media (max-width: 430px) {
+  .brand-name { display: none; }
+}
+
+/* ── short heights (tall-narrow phones-class panels): compact player ── */
+@media (max-height: 640px) {
+  .wave-wrap { height: 56px; }
+  #player { padding-top: 7px; padding-bottom: 7px; }
+  .wave-row { margin-bottom: 5px; }
+  .ctrl-row { margin-top: 7px; }
+  .primary-btn { height: 34px; }
+  #listHeader { padding-top: 8px; padding-bottom: 7px; }
+}

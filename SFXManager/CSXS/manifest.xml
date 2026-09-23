@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ExtensionManifest ExtensionBundleId="com.nadim.sfxmanager"
                    ExtensionBundleName="SFX Manager"
-                   ExtensionBundleVersion="1.0.1"
+                   ExtensionBundleVersion="1.0.2"
                    Version="4.0"
                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 
   <ExtensionList>
-    <Extension Id="com.nadim.sfxmanager.panel" Version="1.0.1"/>
+    <Extension Id="com.nadim.sfxmanager.panel" Version="1.0.2"/>
   </ExtensionList>
 
   <ExecutionEnvironment>
@@ -43,12 +43,13 @@
           <Menu>SFX Manager</Menu>
           <Geometry>
             <Size>
-              <Height>760</Height>
-              <Width>408</Width>
+              <!-- default floating window ≈ 9:16 vertical -->
+              <Height>604</Height>
+              <Width>340</Width>
             </Size>
             <MinSize>
-              <Height>480</Height>
-              <Width>336</Width>
+              <Height>460</Height>
+              <Width>300</Width>
             </MinSize>
             <MaxSize>
               <Height>2400</Height>

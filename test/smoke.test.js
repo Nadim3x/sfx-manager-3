@@ -344,6 +344,25 @@ async function main() {
   click($("btnTheme"));
   check("theme → dark", document.documentElement.getAttribute("data-theme") === "dark");
 
+  /* ================= narrow drawer (vertical layout) ================= */
+  console.log("\n── narrow drawer ──");
+  check("sidebar toggle exists", !!$("btnSidebar"));
+  check("drawer shade exists", !!$("drawerShade"));
+  click($("btnSidebar"));
+  check("drawer opens", $("sidebar").classList.contains("open") &&
+    $("drawerShade").classList.contains("show"));
+  click($("drawerShade"));
+  check("shade click closes drawer", !$("sidebar").classList.contains("open"));
+  click($("btnSidebar"));
+  key("Escape");
+  check("Esc closes drawer before stopping preview",
+    !$("sidebar").classList.contains("open"));
+  click($("btnSidebar"));
+  click(document.querySelector('.nav-item[data-view="all"]'));
+  check("nav selection auto-closes drawer", !$("sidebar").classList.contains("open"));
+  await sleep(700); // let "All Sounds" finish loading for the next section
+  check("list ready after drawer nav", rows().length > 5, "rows=" + rows().length);
+
   /* ================= drag payload ================= */
   console.log("\n── drag & drop payload ──");
   let dragData = null;
