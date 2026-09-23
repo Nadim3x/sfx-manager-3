@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ExtensionManifest ExtensionBundleId="com.nadim.sfxmanager"
                    ExtensionBundleName="SFX Manager"
-                   ExtensionBundleVersion="1.0.7"
+                   ExtensionBundleVersion="1.0.8"
                    Version="4.0"
                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 
   <ExtensionList>
-    <Extension Id="com.nadim.sfxmanager.panel" Version="1.0.7"/>
+    <Extension Id="com.nadim.sfxmanager.panel" Version="1.0.8"/>
   </ExtensionList>
 
   <ExecutionEnvironment>

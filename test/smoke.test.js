@@ -358,7 +358,7 @@ async function main() {
   click($("btnSettings"));
   check("settings modal opens", !$("settingsOverlay").classList.contains("hidden"));
   check("settings shows the name", $("settingsAbout").textContent.indexOf("Anamoul Houqe Nadim") >= 0);
-  check("settings shows v1.0.7 badge (verify install)", $("settingsAbout").textContent.indexOf("v1.0.7") >= 0,
+  check("settings shows v1.0.8 badge (verify install)", $("settingsAbout").textContent.indexOf("v1.0.8") >= 0,
     $("settingsAbout").textContent);
   const igBtn = $("btnInstagram");
   const igLabel = igBtn ? igBtn.textContent.replace(/\s+/g, " ").trim() : "";
@@ -375,6 +375,18 @@ async function main() {
     JSON.stringify(openedUrls));
   check("instagram shows opening toast", toasts().some((t) => /Opening Instagram/.test(t)),
     JSON.stringify(toasts()));
+  // The click listener must call window.cep.util.openURLInDefaultBrowser with
+  // the exact profile URL whenever the CEP runtime provides it (user spec).
+  const cepUrls = [];
+  window.cep = { util: { openURLInDefaultBrowser: (u) => { cepUrls.push(String(u)); } } };
+  const opensBeforeCep = openedUrls.length;
+  click($("btnInstagram"));
+  check("button calls window.cep.util.openURLInDefaultBrowser",
+    cepUrls.length === 1 && cepUrls[0] === "https://www.instagram.com/nadim.3x/",
+    JSON.stringify(cepUrls));
+  check("cep.util path skips window.open", openedUrls.length === opensBeforeCep,
+    JSON.stringify(openedUrls));
+  delete window.cep;
 
   // custom accent selector
   click(document.querySelector('.accent-swatch[data-accent="#30d158"]'));

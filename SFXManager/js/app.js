@@ -1228,10 +1228,21 @@
             });
         }
 
-        // Label is just "Instagram" (no URL) — opens the profile in
-        // whatever default browser the customer uses on their machine.
+        // Label is just "Instagram" (no URL).
+        // Inside CEP, standard <a href> links and window.open() do NOT launch
+        // an external browser — the click listener must hand the URL to the
+        // CEP runtime, which opens the system default browser.
         $("btnInstagram").addEventListener("click", function () {
-            Bridge.openExternal("https://instagram.com/nadim.3x");
+            var url = "https://www.instagram.com/nadim.3x/";
+            var viaCep = false;
+            try {
+                if (window.cep && window.cep.util &&
+                    typeof window.cep.util.openURLInDefaultBrowser === "function") {
+                    window.cep.util.openURLInDefaultBrowser(url);
+                    viaCep = true;
+                }
+            } catch (eCep) {}
+            if (!viaCep) Bridge.openExternal(url); // safety net: shell / __adobe_cep__ / window.open
             toast("Opening Instagram in your default browser\u2026", "ok");
         });
     }

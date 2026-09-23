@@ -140,6 +140,14 @@ var Bridge = (function () {
     function openExternal(url) {
         var u = String(url);
         if (isCEP) {
+            // 0) CEP util API — Adobe's runtime call that opens the OS default browser
+            try {
+                if (window.cep && window.cep.util &&
+                    typeof window.cep.util.openURLInDefaultBrowser === "function") {
+                    window.cep.util.openURLInDefaultBrowser(u);
+                    return;
+                }
+            } catch (eCepUtil) {}
             // 1) OS shell → default browser (macOS "open", Windows "start", xdg-open)
             try {
                 var req = null;
