@@ -36,7 +36,22 @@
     function decodeName(s) {
         s = String(s);
         if (s.indexOf("%") === -1) return s;
-        try { return decodeURIComponent(s); } catch (e) { return s; }
+        try { return decodeURIComponent(s); } catch (e) {}
+        // Whole-string decode failed (stray "%" or truncated UTF-8 run):
+        // decode every valid %-sequence run independently so one bad byte
+        // can't leave the entire label percent-encoded.
+        return s.replace(/(?:%[0-9A-Fa-f]{2})+/g, function (run) {
+            var bytes = [];
+            for (var i = 0; i + 2 < run.length + 1; i += 3) {
+                bytes.push(parseInt(run.substr(i + 1, 2), 16));
+            }
+            try {
+                if (typeof TextDecoder !== "undefined") {
+                    return new TextDecoder("utf-8").decode(new Uint8Array(bytes));
+                }
+            } catch (eDec) {}
+            try { return decodeURIComponent(run); } catch (eRun) { return run; }
+        });
     }
 
     function baseNameFull(p) { return decodeName(String(p).split(/[\\/]/).pop()); }
@@ -834,7 +849,13 @@
 
         AudioEngine.on("error", function (e) {
             $("npDecode").classList.add("hidden");
-            toast("Preview unavailable for this codec — you can still add it to the timeline", "err");
+            var detail = e && e.message ? String(e.message).replace(/\s+/g, " ").trim() : "";
+            if (!detail || detail === "Could not decode audio") {
+                toast("Preview unavailable for this codec — you can still add it to the timeline", "err");
+            } else {
+                if (detail.length > 110) detail = detail.slice(0, 107) + "\u2026";
+                toast("Preview failed \u2014 " + detail, "err");
+            }
             $("btnPlay").disabled = true;
         });
 

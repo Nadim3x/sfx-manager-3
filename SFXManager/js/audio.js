@@ -120,7 +120,12 @@ var AudioEngine = (function () {
             decodeArray(ab.slice(0)).then(resolve, function (nativeErr) {
                 var parsed = null;
                 try { parsed = parseWav(ab); } catch (eParse) { parsed = null; }
-                if (!parsed) { reject(nativeErr || new Error("Unsupported audio format")); return; }
+                if (!parsed) {
+                    var why = parseWav.lastReason;
+                    if (why && why !== "not a RIFF/WAVE file") reject(new Error("WAV " + why));
+                    else reject(nativeErr || new Error("Unsupported audio format"));
+                    return;
+                }
                 var c = ensureCtx();
                 if (!c) { reject(new Error("Web Audio unavailable")); return; }
                 var chans = parsed.channels;
@@ -441,44 +446,87 @@ var AudioEngine = (function () {
      * Parse a RIFF/WAVE file into { channels:[Float32Array], frames, sampleRate,
      * formatName }. Returns null when the buffer is not a decodable WAV.
      * Covers codecs Chromium refuses: PCM 8/16/24/32, IEEE float 32/64,
-     * \u00b5-law, A-law, WAVE_FORMAT_EXTENSIBLE, MS-ADPCM and IMA-ADPCM.
+     * µ-law, A-law, WAVE_FORMAT_EXTENSIBLE, MS-ADPCM and IMA-ADPCM.
+     * Tolerates broken/streaming headers: data-size 0 or 0xFFFFFFFF, RF64,
+     * data chunk before fmt, junk prefixes, truncated chunks.
+     * On failure, parseWav.lastReason explains why (for the error toast).
      */
     function parseWav(ab) {
+        parseWav.lastReason = "";
         try {
-            if (!ab || ab.byteLength < 44) return null;
+            if (!ab || ab.byteLength < 44) { parseWav.lastReason = "file too small"; return null; }
             var u8 = new Uint8Array(ab);
             var dv = new DataView(ab);
 
-            // locate RIFF (some files carry junk/ID3 prefixes)
+            // locate RIFF or RF64 (some files carry junk/ID3 prefixes)
             var riff = -1;
+            var isRf64 = false;
             var scanMax = Math.min(u8.length - 12, 1024);
             for (var st = 0; st <= scanMax; st++) {
-                if (u8[st] === 0x52 && u8[st + 1] === 0x49 &&
-                    u8[st + 2] === 0x46 && u8[st + 3] === 0x46) {
-                    riff = st; break;
+                if (u8[st] === 0x52) {
+                    if (u8[st + 1] === 0x49 && u8[st + 2] === 0x46 && u8[st + 3] === 0x46) {
+                        riff = st; isRf64 = false; break;               // RIFF
+                    }
+                    if (u8[st + 1] === 0x46 && u8[st + 2] === 0x36 && u8[st + 3] === 0x34) {
+                        riff = st; isRf64 = true; break;                // RF64
+                    }
                 }
             }
-            if (riff < 0) return null;
+            if (riff < 0) { parseWav.lastReason = "not a RIFF/WAVE file"; return null; }
             if (u8[riff + 8] !== 0x57 || u8[riff + 9] !== 0x41 ||
-                u8[riff + 10] !== 0x56 || u8[riff + 11] !== 0x45) return null; // WAVE
+                u8[riff + 10] !== 0x56 || u8[riff + 11] !== 0x45) {
+                parseWav.lastReason = "not a WAVE container";
+                return null;
+            }
 
             var pos = riff + 12;
             var fmt = null;
             var dataOff = -1;
             var dataSize = 0;
+            var ds64Off = -1;
             var end = u8.length;
             while (pos + 8 <= end) {
                 var id = String.fromCharCode(u8[pos], u8[pos + 1], u8[pos + 2], u8[pos + 3]);
                 var sz = dv.getUint32(pos + 4, true);
-                if (sz === 0xffffffff) sz = end - (pos + 8); // streaming size
                 var body = pos + 8;
-                if (body + sz > end) sz = end - body; // truncated chunk
-                if (id === "fmt ") fmt = { off: body, len: sz };
-                else if (id === "data") { dataOff = body; dataSize = sz; break; }
-                if (sz <= 0) break;
+                if (body >= end) break;
+                if (id === "fmt " && !fmt) {
+                    fmt = { off: body, len: Math.min(sz, end - body) };
+                } else if (id === "ds64") {
+                    ds64Off = body;
+                } else if (id === "data" && dataOff < 0) {
+                    dataOff = body;
+                    dataSize = sz;
+                    // keep scanning when fmt hasn't been seen yet
+                    if (fmt) break;
+                }
+                if (sz <= 0 || sz === 0xffffffff) {
+                    // streaming / untrustworthy size — cannot advance further
+                    if (fmt && dataOff >= 0) break;
+                    if (sz === 0 || sz === 0xffffffff) {
+                        // skip zero-sized junk conservatively
+                        if (sz === 0) { pos = body; if (pos <= body - 1) break; continue; }
+                        break;
+                    }
+                }
                 pos = body + sz + (sz % 2);
+                if (fmt && dataOff >= 0) break;
             }
-            if (!fmt || dataOff < 0 || fmt.len < 16) return null;
+            if (!fmt || fmt.len < 16) {
+                parseWav.lastReason = !fmt ? "missing fmt chunk" : "fmt chunk too small";
+                return null;
+            }
+            if (dataOff < 0) { parseWav.lastReason = "missing data chunk"; return null; }
+
+            // RF64: real sizes live in the ds64 table (riffSize64, dataSize64, …)
+            if (isRf64 && (dataSize === 0 || dataSize === 0xffffffff) && ds64Off >= 0 && ds64Off + 16 <= end) {
+                var lo = dv.getUint32(ds64Off + 8, true);
+                var hi = dv.getUint32(ds64Off + 12, true);
+                dataSize = hi ? hi * 4294967296 + lo : lo;
+            }
+            // streaming WAVs write size 0 / -1 → use every remaining byte
+            if (dataSize <= 0 || dataOff + dataSize > end) dataSize = end - dataOff;
+            if (dataSize <= 0) { parseWav.lastReason = "empty data chunk"; return null; }
 
             var tag = dv.getUint16(fmt.off, true);
             var channels = dv.getUint16(fmt.off + 2, true);
@@ -487,10 +535,11 @@ var AudioEngine = (function () {
             var bits = dv.getUint16(fmt.off + 14, true);
             if (tag === 0xfffe) {
                 // WAVE_FORMAT_EXTENSIBLE — real tag lives in the SubFormat GUID
-                if (fmt.len < 26) return null;
+                if (fmt.len < 26) { parseWav.lastReason = "truncated EXTENSIBLE fmt"; return null; }
                 tag = dv.getUint16(fmt.off + 24, true);
             }
-            if (!channels || channels > 32 || !sampleRate || dataSize <= 0) return null;
+            if (!channels || channels > 32) { parseWav.lastReason = "bad channel count"; return null; }
+            if (!sampleRate) sampleRate = 44100; // streaming headers sometimes omit it
 
             var data = u8.subarray(dataOff, dataOff + dataSize);
             var fmtBytes = u8.subarray(fmt.off, fmt.off + fmt.len);
@@ -501,13 +550,18 @@ var AudioEngine = (function () {
             else if (tag === 7) out = decodeCompanded(data, channels, "alaw");
             else if (tag === 2) out = decodeMsAdpcm(data, channels, blockAlign, fmtBytes);
             else if (tag === 17) out = decodeImaAdpcm(data, channels, blockAlign);
-            if (!out) return null;
+            if (!out) {
+                parseWav.lastReason = "unsupported codec (format tag " + tag + ", " + bits + "-bit)";
+                return null;
+            }
             out.sampleRate = sampleRate;
             return out;
         } catch (e) {
+            parseWav.lastReason = "parse error: " + (e && e.message ? e.message : e);
             return null;
         }
     }
+    parseWav.lastReason = "";
 
     /* ---------------- quick duration from headers ---------------- */
 

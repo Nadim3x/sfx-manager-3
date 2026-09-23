@@ -134,10 +134,34 @@ var Bridge = (function () {
 
     function openExternal(url) {
         if (isCEP) {
-            try { window.__adobe_cep__.openURLInDefaultBrowser(url); return; }
-            catch (e) {}
+            // 1) native CEP hand-off to the OS default browser
+            try {
+                if (window.__adobe_cep__ && typeof window.__adobe_cep__.openURLInDefaultBrowser === "function") {
+                    window.__adobe_cep__.openURLInDefaultBrowser(url);
+                    return;
+                }
+            } catch (e) {}
+            // 2) Node shell-out (panel runs with --enable-nodejs) —
+            //    on macOS prefer Google Chrome explicitly, else the default.
+            try {
+                if (typeof require === "function") {
+                    var cp = require("child_process");
+                    var u = String(url).replace(/[\"&<>]/g, "");
+                    if (process.platform === "darwin") {
+                        cp.execFile("open", ["-a", "Google Chrome", u], function (err) {
+                            if (err) { try { cp.execFile("open", [u]); } catch (e2) {} }
+                        });
+                    } else if (process.platform === "win32") {
+                        cp.exec('start "" "' + u + '"');
+                    } else {
+                        cp.execFile("xdg-open", [u]);
+                    }
+                    return;
+                }
+            } catch (e3) {}
         }
-        window.open(url, "_blank");
+        // 3) plain browsers / live preview
+        try { window.open(url, "_blank"); } catch (e4) {}
     }
 
     function revealPath(p) {

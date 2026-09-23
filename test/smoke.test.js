@@ -352,6 +352,8 @@ async function main() {
   click($("btnSettings"));
   check("settings modal opens", !$("settingsOverlay").classList.contains("hidden"));
   check("settings shows the name", $("settingsAbout").textContent.indexOf("Anamoul Houqe Nadim") >= 0);
+  check("settings shows v1.0.6 badge (verify install)", $("settingsAbout").textContent.indexOf("v1.0.6") >= 0,
+    $("settingsAbout").textContent);
   const igBtn = $("btnInstagram");
   const igLabel = igBtn ? igBtn.textContent.replace(/\s+/g, " ").trim() : "";
   check("instagram button: label only, no URL",
@@ -428,6 +430,10 @@ async function main() {
   check("tree shows decoded folder", labels.some((l) => l.indexOf("Button Pack") >= 0 && l.indexOf("%") < 0),
     JSON.stringify(labels));
   check("tree decodes emoji percent-sequences", labels.some((l) => l.indexOf("\uD83C\uDFB5") >= 0));
+  const weirdRow = rows().find((r) => r.dataset.path.indexOf("Bad%zz") >= 0);
+  check("invalid %-run still decodes partially", !!weirdRow &&
+    weirdRow.querySelector(".row-name").textContent.indexOf("Bad%zz Mix") >= 0,
+    weirdRow && weirdRow.querySelector(".row-name").textContent);
 
   /* ================= host support (AE + Premiere Pro) ================= */
   const B = window.Bridge;
@@ -666,6 +672,80 @@ async function main() {
   } catch (e3) {
     check("playLocalFile decodes & plays", false, String(e3));
   }
+
+  // ── broken/streaming headers (the user's 24-bit file shows Duration 0) ──
+  const zw = makeWav({ tag: 1, ch: 1, rate: 44100, bits: 16, data: new Uint8Array(8) });
+  new DataView(zw).setUint32(40, 0, true); // data chunk size = 0 (streaming)
+  const zr = AE.parseWav(zw);
+  check("data-size 0 (streaming) still decodes", !!zr && zr.frames === 4, zr && zr.frames);
+
+  // RF64: data size 0xFFFFFFFF → real size from the ds64 table
+  const rf = new Uint8Array(76 + 8);
+  {
+    const dv = new DataView(rf.buffer);
+    rf.set([0x52, 0x46, 0x36, 0x34], 0);          // "RF64"
+    dv.setUint32(4, rf.length - 8, true);
+    rf.set([0x57, 0x41, 0x56, 0x45], 8);           // "WAVE"
+    rf.set([0x64, 0x73, 0x36, 0x34], 12);          // "ds64"
+    dv.setUint32(16, 24, true);                    // body:24 bytes
+    dv.setUint32(20, rf.length - 8, true);         // riffSize64 lo
+    dv.setUint32(28, 8, true);                     // dataSize64 lo = 8
+    rf.set([0x66, 0x6d, 0x74, 0x20], 44);          // "fmt "
+    dv.setUint32(48, 16, true);
+    dv.setUint16(52, 1, true);                     // PCM
+    dv.setUint16(54, 1, true);                     // mono
+    dv.setUint32(56, 44100, true);
+    dv.setUint32(60, 88200, true);
+    dv.setUint16(64, 2, true);
+    dv.setUint16(66, 16, true);
+    rf.set([0x64, 0x61, 0x74, 0x61], 68);          // "data"
+    dv.setUint32(72, 0xffffffff, true);            // size = -1 → ds64
+  }
+  const rr = AE.parseWav(rf.buffer);
+  check("RF64 (ds64 size) decodes", !!rr && rr.frames === 4, rr && rr.frames);
+
+  // data chunk before fmt
+  const df = new Uint8Array(12 + 16 + 24);
+  {
+    const dv = new DataView(df.buffer);
+    df.set([0x52, 0x49, 0x46, 0x46], 0);
+    dv.setUint32(4, df.length - 8, true);
+    df.set([0x57, 0x41, 0x56, 0x45], 8);
+    df.set([0x64, 0x61, 0x74, 0x61], 12);          // "data" FIRST
+    dv.setUint32(16, 8, true);
+    df.set([0x66, 0x6d, 0x74, 0x20], 28);          // "fmt " second
+    dv.setUint32(32, 16, true);
+    dv.setUint16(36, 1, true);
+    dv.setUint16(38, 1, true);
+    dv.setUint32(40, 44100, true);
+    dv.setUint32(44, 88200, true);
+    dv.setUint16(48, 2, true);
+    dv.setUint16(50, 16, true);
+  }
+  const dfr = AE.parseWav(df.buffer);
+  check("data-before-fmt layout decodes", !!dfr && dfr.frames === 4, dfr && dfr.frames);
+
+  // diagnostic reasons for the error toast
+  AE.parseWav(new Uint8Array(64).fill(0x01).buffer);
+  check("reason: not RIFF", AE.parseWav.lastReason === "not a RIFF/WAVE file", AE.parseWav.lastReason);
+  const mp3w = makeWav({ tag: 0x55, ch: 2, rate: 44100, bits: 0,
+    data: new Uint8Array(16), blockAlign: 1 });
+  AE.parseWav(mp3w);
+  check("reason: unsupported tag exposed", /format tag 85/.test(AE.parseWav.lastReason),
+    AE.parseWav.lastReason);
+
+  // read/preview failures surface the real reason (no more mystery toast)
+  const badPath = "/SFX Library/Whooshes/Unreadable.wav";
+  const origRead2 = window.Mock.readFileBuffer;
+  window.Mock.readFileBuffer = function (p, cb) {
+    if (p === badPath) { setTimeout(function () { cb("disk I/O error 42"); }, 5); return; }
+    origRead2(p, cb);
+  };
+  try { await AE.select(badPath, "Unreadable.wav"); } catch (eBad) { /* expected */ }
+  await sleep(80);
+  window.Mock.readFileBuffer = origRead2;
+  check("failure reason shown in toast", toasts().some((t) => t.indexOf("disk I/O error 42") >= 0),
+    JSON.stringify(toasts()));
 
   /* ================= drag payload ================= */
   console.log("\n── drag & drop payload ──");
