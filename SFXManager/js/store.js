@@ -62,20 +62,20 @@ var Store = (function () {
         if (!state) return;
         try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
 
-        // debounced file backup
+        // debounced file backup — ONLY outside the extension folder, so a
+        // signed (ZXP) install keeps a valid signature at load time
         if (saveTimer) clearTimeout(saveTimer);
         saveTimer = setTimeout(function () {
-            var ext = Bridge.extensionPath();
-            var base = Bridge.userDataPath() || ext;
-            if (!base) return; // browser preview: localStorage only
+            var base = Bridge.userDataPath();
+            if (!base) return; // browser preview / no userData: localStorage only
             var file = base.replace(/[\\/]+$/, "") + "/sfxmanager.settings.json";
             Bridge.writeTextFile(file, JSON.stringify(state), null);
         }, 600);
     }
 
-    /** Merge a settings file found next to the extension (migration/restore). */
+    /** Merge a settings file found in the CEP userData folder (migration/restore). */
     function restoreFromBackup(cb) {
-        var base = Bridge.userDataPath() || Bridge.extensionPath();
+        var base = Bridge.userDataPath();
         if (!base) { if (cb) cb(false); return; }
         var file = base.replace(/[\\/]+$/, "") + "/sfxmanager.settings.json";
         Bridge.readTextFile(file, function (err, text) {

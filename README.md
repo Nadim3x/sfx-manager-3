@@ -38,21 +38,28 @@ context menu with reveal/copy-path.
 
 ## 📦 Install
 
-### macOS
-1. Double-click **`install_mac.command`**
-   (if blocked by Gatekeeper: right-click ▸ Open, or run `chmod +x install_mac.command`)
-2. Quit After Effects completely (`⌘Q`) and reopen it
-3. **Window ▸ SFX Manager**
+### Option A — ZXP package (recommended, signed)
 
-### Windows
-1. Double-click **`install_win.bat`**
-2. Quit After Effects completely and reopen it
-3. **Window ▸ SFX Manager**
+The repo ships a signed **`SFXManager-1.0.0.zxp`** (UCF + W3C XML-DSig,
+cert: *Anamoul Houqe Nadim · valid to 2126*).
+
+1. Install any ZXP installer once:
+   [Anastasiy’s Extension Manager](https://install.anastasiy.com/) (mac/win) or
+   [ZXP Installer by aescripts](https://aescripts.com/learn/zxp-installer/)
+2. Drop **`SFXManager-1.0.0.zxp`** onto it
+   (self-signed cert → the installer asks you to confirm “unknown publisher” — expected)
+3. Restart After Effects → **Window ▸ SFX Manager**
+
+CLI alternative: `ExManCmd --install SFXManager-1.0.0.zxp`
+
+### Option B — one-click folder install
+**macOS:** double-click **`install_mac.command`** · **Windows:** double-click **`install_win.bat`**
+(then fully quit & reopen AE → **Window ▸ SFX Manager**)
 
 > The installers copy the panel into your CEP extensions folder and enable Adobe's
 > `PlayerDebugMode` (required for community panels — safe and reversible).
 
-### Manual install
+### Option C — manual install
 Copy the `SFXManager/` folder to:
 
 - **macOS** → `~/Library/Application Support/Adobe/CEP/extensions/com.nadim.sfxmanager`
@@ -61,6 +68,16 @@ Copy the `SFXManager/` folder to:
 …then enable PlayerDebugMode (the installers do this for CSXS 7–12) and restart AE.
 
 **Requirements:** After Effects **2021 or newer** (18.0+), macOS or Windows.
+
+### Re-signing after changes (maintainers)
+```bash
+python3 tools/zxp.py sign  SFXManager  SFXManager-1.0.0.zxp  \
+        certs/SFXManager-signing.key.pem  certs/SFXManager-signing.cert.pem
+python3 tools/zxp.py verify SFXManager-1.0.0.zxp     # ← always run this
+```
+The identity lives in `certs/SFXManager-signing.p12` (password `nadim.3x`, git-ignored —
+keep a backup). With it you can also re-create packages with Adobe’s official
+`ZXPSignCmd -sign … cert.p12 <password>` on macOS/Windows.
 
 ---
 

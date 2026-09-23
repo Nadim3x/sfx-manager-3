@@ -2,3 +2,8 @@ node_modules/
 *.log
 .DS_Store
 Thumbs.db
+
+# signing keys stay local — the shared identity travels as the .p12 you keep safe
+*.p12
+*.pem
+*.key
