@@ -174,6 +174,20 @@
         }
     }
 
+    /**
+     * Native folder picker. Runs inside ExtendScript so there is no
+     * inline-code escaping involved — JSON is built with jstr().
+     */
+    function sfxm_pickFolder() {
+        try {
+            var f = Folder.selectDialog("Choose your SFX folder");
+            if (!f) return '{"ok":false,"cancelled":true}';
+            return '{"ok":true,"path":' + jstr(f.fsName) + '}';
+        } catch (e) {
+            return fail(String(e));
+        }
+    }
+
     /** Fallback directory listing used only when Node.js is unavailable. */
     function sfxm_listDir(path) {
         try {
@@ -221,6 +235,7 @@
     global.sfxm_getState = sfxm_getState;
     global.sfxm_addAtPlayhead = sfxm_addAtPlayhead;
     global.sfxm_importToProject = sfxm_importToProject;
+    global.sfxm_pickFolder = sfxm_pickFolder;
     global.sfxm_listDir = sfxm_listDir;
 
 })(this);

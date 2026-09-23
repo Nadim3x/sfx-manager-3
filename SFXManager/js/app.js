@@ -1139,12 +1139,21 @@
                     toast("SFX folder set — " + baseNameFull(res.path), "ok");
                     // if the root only contains subfolders, show everything instead
                     Bridge.listDir(res.path, function (err2, listing) {
-                        var hasFiles = !err2 && listing.files.some(function (f) {
+                        if (err2) {
+                            toast("Couldn't read that folder — check file permissions", "err");
+                            loadVirtual("all");
+                            return;
+                        }
+                        var hasFiles = listing.files.some(function (f) {
                             return Bridge.isAudioFile(f.name);
                         });
                         if (hasFiles) selectFolder(res.path);
                         else { Store.set({ lastFolder: "" }); loadVirtual("all"); }
                     });
+                } else if (res && res.cancelled) {
+                    // user closed the dialog — not an error
+                } else {
+                    toast((res && res.error) || "Folder picker failed — try again", "err");
                 }
             });
         }

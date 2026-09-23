@@ -119,17 +119,12 @@ var Bridge = (function () {
 
     function pickFolder(cb) {
         if (!isCEP) { Mock.pickFolder(cb); return; }
-        // ExtendScript Folder.selectDialog blocks until closed, then returns JSON.
-        var code =
-            '(function(){' +
-            'var f = Folder.selectDialog("Choose your SFX folder");' +
-            'if (f) return "{\\"ok\\":true,\\"path\\":\\"" + f.fsName.replace(/\\\\/g,"/\\\\").replace(/"/g,"\\\\\\"") + "\\"}";' +
-            'return "{\\"ok\\":false}";' +
-            '})()';
-        window.__adobe_cep__.evalScript(code, function (raw) {
-            var out;
-            try { out = JSON.parse(raw); } catch (e) { out = { ok: false }; }
-            cb(out);
+        // The dialog + JSON serialisation live inside hostscript.jsx
+        // (sfxm_pickFolder) — no fragile inline escaping on this side.
+        evalHost("sfxm_pickFolder", [], function (out) {
+            if (out && out.ok && out.path) { cb(out); return; }
+            if (out && out.cancelled) { cb({ ok: false, cancelled: true }); return; }
+            cb(out && out.error ? out : { ok: false, error: "Folder picker failed." });
         });
     }
 
@@ -210,13 +205,20 @@ var Bridge = (function () {
     function readFileBuffer(p, cb) {
         if (hasNode) {
             nodeFs.readFile(p, function (err, buf) {
-                if (err) { cb(String(err), null); return; }
-                // Buffer → ArrayBuffer (works across CEP Chromium versions)
-                var ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
-                cb(null, ab);
+                if (!err && buf) {
+                    // Buffer → ArrayBuffer (works across CEP Chromium versions)
+                    cb(null, buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
+                    return;
+                }
+                readViaCepFs(p, cb); // Node failed → native CEP fs
             });
             return;
         }
+        if (isCEP) { readViaCepFs(p, cb); return; }
+        Mock.readFileBuffer(p, cb);
+    }
+
+    function readViaCepFs(p, cb) {
         if (isCEP && window.cep && window.cep.fs) {
             var r = window.cep.fs.readFile(p, window.cep.encoding.Base64);
             if (r.err !== window.cep.fs.NO_ERROR) { cb("read error " + r.err, null); return; }
@@ -225,6 +227,7 @@ var Bridge = (function () {
             } catch (e) { cb(String(e), null); }
             return;
         }
+        if (isCEP) { cb("No file system available.", null); return; }
         Mock.readFileBuffer(p, cb);
     }
 
@@ -263,16 +266,29 @@ var Bridge = (function () {
      * cb(errOrNull, { dirs:[{name,path,isDir}], files:[{name,path,size}] })
      * dirs and files are sorted alphabetically, folders first on the UI side.
      */
+    /**
+     * cb(errOrNull, { dirs:[{name,path,isDir}], files:[{name,path,size}] })
+     * Cascade: Node fs (fast) → on any failure ExtendScript Folder.getFiles.
+     */
     function listDir(p, cb) {
-        if (hasNode) { listDirNode(p, cb); return; }
-        if (isCEP) {
+        if (!isCEP) { Mock.listDir(p, cb); return; }
+
+        function viaExtendScript() {
             evalHost("sfxm_listDir", [p], function (out) {
                 if (out && out.ok) cb(null, { dirs: out.dirs || [], files: out.files || [] });
-                else cb((out && out.error) || "list failed", null);
+                else cb((out && out.error) || "Folder could not be read.", null);
             });
-            return;
         }
-        Mock.listDir(p, cb);
+
+        if (hasNode) {
+            listDirNode(p, function (err, listing) {
+                // Node failed (old runtime, odd fs…) → fall back, don't give up
+                if (!err && listing) cb(null, listing);
+                else viaExtendScript();
+            });
+        } else {
+            viaExtendScript();
+        }
     }
 
     function listDirNode(p, cb) {
@@ -302,34 +318,52 @@ var Bridge = (function () {
                a.name.toLowerCase() > b.name.toLowerCase() ? 1 : 0;
     }
 
-    /** Recursive walk used by search. Returns at most `limit` audio files. */
+    /**
+     * Recursive walk used by search. Returns at most `limit` audio files.
+     * Steps are scheduled asynchronously so huge libraries can't blow the
+     * call stack when the Node backend answers synchronously.
+     */
     function walkAudio(root, limit, cb) {
         var results = [];
         var queue = [{ dir: root, depth: 0 }];
         var guard = 0;
+        var done = false;
+
+        function finish() {
+            if (done) return;
+            done = true;
+            cb(null, results);
+        }
 
         function next() {
+            if (done) return;
             if (++guard > 20000 || results.length >= limit || queue.length === 0) {
-                cb(null, results);
+                finish();
                 return;
             }
             var item = queue.shift();
-            listDir(item.dir, function (err, listing) {
-                if (!err && listing) {
-                    if (item.depth < 12) {
-                        for (var i = 0; i < listing.dirs.length; i++) {
-                            queue.push({ dir: listing.dirs[i].path, depth: item.depth + 1 });
+            try {
+                listDir(item.dir, function (err, listing) {
+                    if (!err && listing) {
+                        if (item.depth < 12) {
+                            for (var i = 0; i < listing.dirs.length; i++) {
+                                queue.push({ dir: listing.dirs[i].path, depth: item.depth + 1 });
+                            }
+                        }
+                        for (var j = 0; j < listing.files.length && results.length < limit; j++) {
+                            results.push(listing.files[j]);
                         }
                     }
-                    for (var j = 0; j < listing.files.length && results.length < limit; j++) {
-                        results.push(listing.files[j]);
-                    }
-                }
-                next();
-            });
+                    schedule();
+                });
+            } catch (e) {
+                schedule(); // skip broken folders, keep walking
+            }
         }
 
-        next();
+        function schedule() { setTimeout(next, 0); }
+
+        schedule();
     }
 
     /* ------------------------------------------------------------------ */
