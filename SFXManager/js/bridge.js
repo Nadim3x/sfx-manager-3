@@ -132,36 +132,43 @@ var Bridge = (function () {
     /* Misc host integration                                               */
     /* ------------------------------------------------------------------ */
 
+    /**
+     * Open a URL in the user's DEFAULT browser (whatever the customer uses).
+     * Order matters — the Node shell-out is the most reliable on desktop,
+     * the CEP hand-off is next, window.open only for plain-browser preview.
+     */
     function openExternal(url) {
+        var u = String(url);
         if (isCEP) {
-            // 1) native CEP hand-off to the OS default browser
+            // 1) OS shell → default browser (macOS "open", Windows "start", xdg-open)
             try {
-                if (window.__adobe_cep__ && typeof window.__adobe_cep__.openURLInDefaultBrowser === "function") {
-                    window.__adobe_cep__.openURLInDefaultBrowser(url);
-                    return;
-                }
-            } catch (e) {}
-            // 2) Node shell-out (panel runs with --enable-nodejs) —
-            //    on macOS prefer Google Chrome explicitly, else the default.
-            try {
-                if (typeof require === "function") {
-                    var cp = require("child_process");
-                    var u = String(url).replace(/[\"&<>]/g, "");
-                    if (process.platform === "darwin") {
-                        cp.execFile("open", ["-a", "Google Chrome", u], function (err) {
-                            if (err) { try { cp.execFile("open", [u]); } catch (e2) {} }
-                        });
-                    } else if (process.platform === "win32") {
-                        cp.exec('start "" "' + u + '"');
+                var req = null;
+                if (typeof require === "function") req = require;
+                else if (typeof window.require === "function") req = window.require;
+                else if (typeof cep_node !== "undefined" && cep_node && cep_node.require) req = cep_node.require;
+                if (req) {
+                    var cp = req("child_process");
+                    var plat = (typeof process !== "undefined" && process.platform) || "";
+                    if (plat === "win32") {
+                        cp.execFile("cmd.exe", ["/c", "start", "", u]);
+                    } else if (plat === "darwin") {
+                        cp.execFile("open", [u]);
                     } else {
                         cp.execFile("xdg-open", [u]);
                     }
                     return;
                 }
-            } catch (e3) {}
+            } catch (eNode) {}
+            // 2) official CEP hand-off
+            try {
+                if (window.__adobe_cep__ && typeof window.__adobe_cep__.openURLInDefaultBrowser === "function") {
+                    window.__adobe_cep__.openURLInDefaultBrowser(u);
+                    return;
+                }
+            } catch (eCep) {}
         }
         // 3) plain browsers / live preview
-        try { window.open(url, "_blank"); } catch (e4) {}
+        try { window.open(u, "_blank"); } catch (eOpen) {}
     }
 
     function revealPath(p) {

@@ -15,6 +15,7 @@ var Store = (function () {
         speed: 1.0,               // 0.5..2
         loop: false,
         theme: "dark",            // dark | light
+        viewMode: "list",         // list | grid
         accent: "#066ce7",        // UI accent colour (#066CE7 = default blue)
         zoom: 1,                  // waveform zoom level
         favorites: {},            // path -> timestamp

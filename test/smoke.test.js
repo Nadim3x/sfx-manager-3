@@ -254,9 +254,15 @@ async function main() {
   check("tag dot visible on row", tagBtn && tagBtn.classList.contains("has"));
 
   /* ================= add at playhead ================= */
+  check("primary button label is just Add", !/Add at Playhead/.test($("btnAdd").textContent),
+    JSON.stringify($("btnAdd").textContent));
   console.log("\n── add at playhead ──");
   check("add button enabled after selection", !$("btnAdd").disabled);
-  click($("btnAdd"));
+
+  check("btnAdd label is Add only",
+    $("btnAdd").querySelector(".pb-label").textContent.trim() === "Add" &&
+    !/Add at Playhead/.test($("btnAdd").textContent),
+    JSON.stringify($("btnAdd").querySelector(".pb-label").textContent));  click($("btnAdd"));
   await sleep(300);
   const toasts = () => Array.from($("toastHost").children).map((t) => t.textContent);
   check("add shows success toast", toasts().some((t) => /Added/.test(t)), JSON.stringify(toasts()));
@@ -352,7 +358,7 @@ async function main() {
   click($("btnSettings"));
   check("settings modal opens", !$("settingsOverlay").classList.contains("hidden"));
   check("settings shows the name", $("settingsAbout").textContent.indexOf("Anamoul Houqe Nadim") >= 0);
-  check("settings shows v1.0.6 badge (verify install)", $("settingsAbout").textContent.indexOf("v1.0.6") >= 0,
+  check("settings shows v1.0.7 badge (verify install)", $("settingsAbout").textContent.indexOf("v1.0.7") >= 0,
     $("settingsAbout").textContent);
   const igBtn = $("btnInstagram");
   const igLabel = igBtn ? igBtn.textContent.replace(/\s+/g, " ").trim() : "";
@@ -367,6 +373,8 @@ async function main() {
   check("instagram click opens default browser",
     openedUrls.length === 1 && openedUrls[0].indexOf("instagram.com/nadim.3x") >= 0,
     JSON.stringify(openedUrls));
+  check("instagram shows opening toast", toasts().some((t) => /Opening Instagram/.test(t)),
+    JSON.stringify(toasts()));
 
   // custom accent selector
   click(document.querySelector('.accent-swatch[data-accent="#30d158"]'));
@@ -434,6 +442,21 @@ async function main() {
   check("invalid %-run still decodes partially", !!weirdRow &&
     weirdRow.querySelector(".row-name").textContent.indexOf("Bad%zz Mix") >= 0,
     weirdRow && weirdRow.querySelector(".row-name").textContent);
+
+  /* ================= list / grid view ================= */
+  console.log("\n── list / grid view ──");
+  check("view toggle exists", !!$("btnViewList") && !!$("btnViewGrid"));
+  check("list view is default", !$("soundList").classList.contains("grid-view"));
+  click($("btnViewGrid"));
+  check("grid view applied", $("soundList").classList.contains("grid-view"));
+  check("grid button active", $("btnViewGrid").classList.contains("active") &&
+    !$("btnViewList").classList.contains("active"));
+  check("grid view persisted", JSON.parse(window.localStorage.getItem("sfxm.v1")).viewMode === "grid",
+    JSON.parse(window.localStorage.getItem("sfxm.v1")).viewMode);
+  check("grid keeps sound rows", rows().length > 5, "rows=" + rows().length);
+  click($("btnViewList"));
+  check("list view restored", !$("soundList").classList.contains("grid-view") &&
+    JSON.parse(window.localStorage.getItem("sfxm.v1")).viewMode === "list");
 
   /* ================= host support (AE + Premiere Pro) ================= */
   const B = window.Bridge;

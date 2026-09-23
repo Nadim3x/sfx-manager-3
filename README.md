@@ -15,7 +15,8 @@ macOS-style interface and a blue `#066CE7` accent.
 | You asked for | How it works |
 |---|---|
 | **Folder tree = my real SFX folder** | Pick your SFX folder once — the sidebar mirrors its exact folder tree, lazily expanded |
-| **Add at playhead** | Blue **＋ Add at Playhead** button (or `⏎`, or double-click a row) imports the sound and places it starting exactly at the current time |
+| **Add** | Blue **＋ Add** button (or `⏎`, or double-click a row) imports the sound and places it starting exactly at the current time |
+| **List / grid views** | Segmented toggle above the list — compact rows or a card grid; remembered per user |
 | **Waveform preview** | Real decoded waveform on canvas — click to scrub, playhead line follows playback |
 | **Playback preview** | Web Audio engine — and it **auto-plays the moment you select a sound**, no play button needed |
 | **Premium Apple UI** | Frosted-glass bars, hairline borders, springy hover states, staggered list animations, light/dark themes |
@@ -41,17 +42,17 @@ context menu with reveal/copy-path.
 
 ### Option A — ZXP package (recommended, signed)
 
-The repo ships a signed **`SFXManager-1.0.6.zxp`** (UCF + W3C XML-DSig,
+The repo ships a signed **`SFXManager-1.0.7.zxp`** (UCF + W3C XML-DSig,
 cert: *Anamoul Houqe Nadim · valid to 2126*).
 
 1. Install any ZXP installer once:
    [Anastasiy’s Extension Manager](https://install.anastasiy.com/) (mac/win) or
    [ZXP Installer by aescripts](https://aescripts.com/learn/zxp-installer/)
-2. Drop **`SFXManager-1.0.6.zxp`** onto it
+2. Drop **`SFXManager-1.0.7.zxp`** onto it
    (self-signed cert → the installer asks you to confirm “unknown publisher” — expected)
 3. Restart After Effects → **Window ▸ SFX Manager**
 
-CLI alternative: `ExManCmd --install SFXManager-1.0.6.zxp`
+CLI alternative: `ExManCmd --install SFXManager-1.0.7.zxp`
 
 ### Option B — one-click folder install
 **macOS:** double-click **`install_mac.command`** · **Windows:** double-click **`install_win.bat`**
@@ -72,9 +73,9 @@ Copy the `SFXManager/` folder to:
 
 ### Re-signing after changes (maintainers)
 ```bash
-python3 tools/zxp.py sign  SFXManager  SFXManager-1.0.6.zxp  \
+python3 tools/zxp.py sign  SFXManager  SFXManager-1.0.7.zxp  \
         certs/SFXManager-signing.key.pem  certs/SFXManager-signing.cert.pem
-python3 tools/zxp.py verify SFXManager-1.0.6.zxp     # ← always run this
+python3 tools/zxp.py verify SFXManager-1.0.7.zxp     # ← always run this
 ```
 The identity lives in `certs/SFXManager-signing.p12` (password `nadim.3x`, git-ignored —
 keep a backup). With it you can also re-create packages with Adobe’s official
@@ -87,7 +88,7 @@ keep a backup). With it you can also re-create packages with Adobe’s official
 | Action | Keys |
 |---|---|
 | Move selection (auto-previews) | `↑` `↓` |
-| **Add at playhead** | `⏎` |
+| **Add** | `⏎` |
 | Play / pause preview | `Space` |
 | Stop preview | `Esc` |
 | Seek ±0.1s / ±1s | `←` `→` / `⇧←` `⇧→` |
@@ -146,8 +147,8 @@ SFXManager/
 |---|---|
 | Panel not in the Window menu | Re-run the installer (PlayerDebugMode), fully quit & reopen AE |
 | “No composition open” | Select/open a comp in After Effects |
-| A codec won't preview | Some exotic codecs can't play in-panel — **Add at Playhead** still works (AE decodes everything) |
-| Drag onto timeline ignored by your OS/CCP build | Use **＋ Add at Playhead** / `⏎` — identical result, zero placement errors |
+| A codec won't preview | Some exotic codecs can't play in-panel — **Add** still works (AE decodes everything) |
+| Drag onto timeline ignored by your OS/CCP build | Use **＋ Add** / `⏎` — identical result, zero placement errors |
 | macOS can't read your SFX folder | System Settings ▸ Privacy & Security ▸ **Full Disk Access** ▸ enable After Effects |
 | Preview feels late | Lower folder depth first-load — the tree loads lazily by design |
 

@@ -706,7 +706,7 @@
 
         menu.innerHTML =
             '<button class="ctx-item" data-act="preview"><span class="ctx-ico">▶</span>Preview<span class="ctx-kbd">Space</span></button>' +
-            '<button class="ctx-item" data-act="add"><span class="ctx-ico">＋</span>Add at Playhead<span class="ctx-kbd">⏎</span></button>' +
+            '<button class="ctx-item" data-act="add"><span class="ctx-ico">＋</span>Add<span class="ctx-kbd">⏎</span></button>' +
             '<button class="ctx-item" data-act="import"><span class="ctx-ico">↓</span>Import to Project</button>' +
             '<div class="ctx-sep"></div>' +
             '<button class="ctx-item" data-act="fav"><span class="ctx-ico">' + (fav ? "★" : "☆") + "</span>" +
@@ -1228,10 +1228,11 @@
             });
         }
 
-        // Label is just "Instagram" (no URL) — opens in the system default
-        // browser (Chrome, when that is your default).
+        // Label is just "Instagram" (no URL) — opens the profile in
+        // whatever default browser the customer uses on their machine.
         $("btnInstagram").addEventListener("click", function () {
             Bridge.openExternal("https://instagram.com/nadim.3x");
+            toast("Opening Instagram in your default browser\u2026", "ok");
         });
     }
 
@@ -1311,9 +1312,26 @@
         });
     }
 
+    /* ═══════════════════ list / grid view ═══════════════════ */
+
+    function applyViewMode(mode, persist) {
+        mode = mode === "grid" ? "grid" : "list";
+        var list = $("soundList");
+        list.classList.toggle("grid-view", mode === "grid");
+        $("btnViewList").classList.toggle("active", mode === "list");
+        $("btnViewGrid").classList.toggle("active", mode === "grid");
+        if (persist) Store.set({ viewMode: mode });
+    }
+
+    function wireViewToggle() {
+        $("btnViewList").addEventListener("click", function () { applyViewMode("list", true); });
+        $("btnViewGrid").addEventListener("click", function () { applyViewMode("grid", true); });
+    }
+
     /* ═══════════════════ misc UI ═══════════════════ */
 
     function wireChrome() {
+        wireViewToggle();
         $("btnTheme").addEventListener("click", function () {
             var next = Store.get().theme === "light" ? "dark" : "light";
             Store.set({ theme: next });
@@ -1357,6 +1375,7 @@
         var st = Store.load();
         applyTheme(st.theme);
         applyAccent(st.accent || "#066ce7", false);
+        applyViewMode(st.viewMode);
         wirePlayer();
         wireKeyboard();
         wireSearch();
