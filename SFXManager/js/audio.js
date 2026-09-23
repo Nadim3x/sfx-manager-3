@@ -91,6 +91,30 @@ var AudioEngine = (function () {
      * containers). The ArrayBuffer is copied for the native attempt because
      * older CEP Chromium versions detach it on failure.
      */
+    /** Linear resample of channel data (used when the AudioContext refuses
+     *  the file's native rate — e.g. 96 kHz on older CEP Chromium builds). */
+    function resampleChannels(channels, fromRate, toRate) {
+        if (fromRate === toRate || !channels.length) return channels;
+        var inFrames = channels[0].length;
+        var outFrames = Math.max(1, Math.round(inFrames * toRate / fromRate));
+        var ratio = fromRate / toRate;
+        var out = [];
+        for (var c = 0; c < channels.length; c++) {
+            var src = channels[c];
+            var dst = new Float32Array(outFrames);
+            for (var i = 0; i < outFrames; i++) {
+                var pos = i * ratio;
+                var i0 = Math.floor(pos);
+                var frac = pos - i0;
+                var s0 = src[Math.min(i0, inFrames - 1)];
+                var s1 = src[Math.min(i0 + 1, inFrames - 1)];
+                dst[i] = s0 + (s1 - s0) * frac;
+            }
+            out.push(dst);
+        }
+        return out;
+    }
+
     function decodeAny(ab) {
         return new Promise(function (resolve, reject) {
             decodeArray(ab.slice(0)).then(resolve, function (nativeErr) {
@@ -99,15 +123,33 @@ var AudioEngine = (function () {
                 if (!parsed) { reject(nativeErr || new Error("Unsupported audio format")); return; }
                 var c = ensureCtx();
                 if (!c) { reject(new Error("Web Audio unavailable")); return; }
+                var chans = parsed.channels;
+                var frames = Math.max(1, parsed.frames);
+                var rate = parsed.sampleRate;
+                var buf = null;
                 try {
-                    var buf = c.createBuffer(parsed.channels.length, Math.max(1, parsed.frames), parsed.sampleRate);
-                    for (var i = 0; i < parsed.channels.length; i++) {
-                        buf.getChannelData(i).set(parsed.channels[i]);
-                    }
-                    resolve(buf);
-                } catch (eCreate) {
+                    buf = c.createBuffer(chans.length, frames, rate);
+                } catch (eRate) {
+                    // Context refuses this rate (24-bit/96 kHz files on older
+                    // CEP Chromium) → resample to the context rate and retry.
+                    try {
+                        var target = c.sampleRate || 44100;
+                        chans = resampleChannels(chans, rate, target);
+                        frames = Math.max(1, chans[0].length);
+                        rate = target;
+                        buf = c.createBuffer(chans.length, frames, rate);
+                    } catch (eRetry) { buf = null; }
+                }
+                if (!buf) {
                     reject(new Error("Decoded " + parsed.formatName + " WAV, but " +
                         parsed.sampleRate + " Hz playback is unsupported"));
+                    return;
+                }
+                try {
+                    for (var i = 0; i < chans.length; i++) buf.getChannelData(i).set(chans[i]);
+                    resolve(buf);
+                } catch (eFill) {
+                    reject(new Error("Decoded " + parsed.formatName + " WAV, but could not fill the buffer"));
                 }
             });
         });
@@ -670,6 +712,20 @@ var AudioEngine = (function () {
         });
     }
 
+    /**
+     * playLocalFile(path, name) — full Web Audio pipeline in one call:
+     *   1) initialise (or reuse) the AudioContext          → ensureCtx()
+     *   2) fetch the local file as an ArrayBuffer          → Bridge.readFileBuffer
+     *   3) decode natively with decodeAudioData            → decodeAny()
+     *      (on codec failure — e.g. 24-bit/96 kHz PCM on older Chromium —
+     *       the built-in WAV parser takes over, resampling if required)
+     *   4) route source → masterGain → destination and play → startSource()
+     * No HTML5 <audio> element is involved anywhere in this panel.
+     */
+    function playLocalFile(path, name) {
+        return select(path, name, { autoplay: true });
+    }
+
     function togglePlay() {
         if (!current || !current.buffer) return;
         if (playing) pause();
@@ -813,7 +869,7 @@ var AudioEngine = (function () {
             var posFrac = current.duration ? pos / current.duration : 0;
 
             var accent = styles.getPropertyValue("--accent").trim() || "#066ce7";
-            var accentSoft = styles.getPropertyValue("--wf-unplayed").trim() || "rgba(6,108,231,.45)";
+            var accentSoft = styles.getPropertyValue("--wf-unplayed").trim() || "rgba(var(--accent-rgb), .45)";
 
             var grad = g.createLinearGradient(0, 0, 0, H);
             grad.addColorStop(0, accent);
@@ -913,6 +969,8 @@ var AudioEngine = (function () {
         ensureCtx: ensureCtx,
         load: load,
         select: select,
+        playLocalFile: playLocalFile,
+        resampleChannels: resampleChannels,
         togglePlay: togglePlay,
         pause: pause,
         stop: stop,

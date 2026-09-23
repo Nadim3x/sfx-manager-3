@@ -967,11 +967,11 @@
     }
 
     function anyOverlayOpen() {
-        return !$("aboutOverlay").classList.contains("hidden") ||
+        return !$("settingsOverlay").classList.contains("hidden") ||
                !$("helpOverlay").classList.contains("hidden");
     }
     function closeOverlays() {
-        $("aboutOverlay").classList.add("hidden");
+        $("settingsOverlay").classList.add("hidden");
         $("helpOverlay").classList.add("hidden");
     }
 
@@ -1184,12 +1184,15 @@
     /* ═══════════════════ modals ═══════════════════ */
 
     function wireModals() {
-        $("btnAbout").addEventListener("click", function () {
-            $("aboutOverlay").classList.remove("hidden");
+        $("btnSettings").addEventListener("click", function () {
+            $("settingsOverlay").classList.remove("hidden");
+            applyAccent(Store.get().accent, false); // refresh swatch state
         });
         $("btnShortcuts").addEventListener("click", function () {
             $("helpOverlay").classList.remove("hidden");
         });
+
+        wireAccent();
 
         var closes = document.querySelectorAll("[data-close]");
         for (var i = 0; i < closes.length; i++) {
@@ -1204,8 +1207,9 @@
             });
         }
 
-        $("linkInsta").addEventListener("click", function (ev) {
-            ev.preventDefault();
+        // Label is just "Instagram" (no URL) — opens in the system default
+        // browser (Chrome, when that is your default).
+        $("btnInstagram").addEventListener("click", function () {
             Bridge.openExternal("https://instagram.com/nadim.3x");
         });
     }
@@ -1222,6 +1226,68 @@
     function toggleDrawer() {
         var open = $("sidebar").classList.toggle("open");
         $("drawerShade").classList.toggle("show", open);
+    }
+
+    /* ═══════════════════ accent colour ═══════════════════ */
+
+    function normalizeHex(h) {
+        if (!h) return null;
+        h = String(h).trim().toLowerCase();
+        if (/^#[0-9a-f]{6}$/.test(h)) return h;
+        if (/^#[0-9a-f]{3}$/.test(h)) return "#" + h[1] + h[1] + h[2] + h[2] + h[3] + h[3];
+        return null;
+    }
+
+    function hexToRgb(hex) {
+        return [parseInt(hex.slice(1, 3), 16),
+                parseInt(hex.slice(3, 5), 16),
+                parseInt(hex.slice(5, 7), 16)];
+    }
+
+    function mixHex(hex, target, amt) {
+        var c = hexToRgb(hex), out = "";
+        for (var i = 0; i < 3; i++) {
+            var v = Math.round(c[i] + (target[i] - c[i]) * amt);
+            out += (v < 16 ? "0" : "") + v.toString(16);
+        }
+        return "#" + out;
+    }
+
+    /** Apply an accent colour across the whole panel (live + persisted). */
+    function applyAccent(hex, persist) {
+        hex = normalizeHex(hex) || "#066ce7";
+        var rgb = hexToRgb(hex);
+        var root = document.documentElement;
+        root.style.setProperty("--accent", hex);
+        root.style.setProperty("--accent-rgb", rgb.join(", "));
+        root.style.setProperty("--accent-hi", mixHex(hex, [255, 255, 255], 0.28));
+        root.style.setProperty("--accent-dk", mixHex(hex, [0, 0, 0], 0.34));
+        root.style.setProperty("--accent-soft", "rgba(" + rgb.join(", ") + ", .16)");
+        root.style.setProperty("--accent-glow", "rgba(" + rgb.join(", ") + ", .42)");
+        root.setAttribute("data-accent", hex);
+        if (persist) Store.set({ accent: hex });
+
+        var swatches = document.querySelectorAll("#accentRow .accent-swatch");
+        for (var i = 0; i < swatches.length; i++) {
+            var isOn = normalizeHex(swatches[i].dataset.accent) === hex;
+            swatches[i].classList.toggle("active", isOn);
+        }
+        var picker = $("accentCustom");
+        if (picker && picker.value !== hex) picker.value = hex;
+
+        try { AudioEngine.Waveform.draw(); } catch (e) {}
+    }
+
+    function wireAccent() {
+        var swatches = document.querySelectorAll("#accentRow .accent-swatch");
+        for (var i = 0; i < swatches.length; i++) {
+            swatches[i].addEventListener("click", function () {
+                applyAccent(this.dataset.accent, true);
+            });
+        }
+        $("accentCustom").addEventListener("input", function () {
+            applyAccent(this.value, true);
+        });
     }
 
     /* ═══════════════════ misc UI ═══════════════════ */
@@ -1269,6 +1335,7 @@
     function init() {
         var st = Store.load();
         applyTheme(st.theme);
+        applyAccent(st.accent || "#066ce7", false);
         wirePlayer();
         wireKeyboard();
         wireSearch();

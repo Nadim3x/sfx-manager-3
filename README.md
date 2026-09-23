@@ -27,7 +27,8 @@ macOS-style interface and a blue `#066CE7` accent.
 | **Keyboard shortcuts** | Full scheme, on-screen reference with `?` |
 | **Recently used** | Every preview/add is remembered — Recently Used view |
 | **Preview volume & speed** | Sliders for volume (0–100%) and speed (0.5×–2.0×), loop toggle |
-| **About me button** | Avatar button (top-right) → **Anamoul Houqe Nadim** + Instagram [`@nadim.3x`](https://instagram.com/nadim.3x) |
+| **Settings (gear button)** | Accent-colour picker (default `#066CE7`, presets + custom) — applied live across the panel and waveform — with **Anamoul Houqe Nadim** + an **Instagram** button (opens your default browser, e.g. Chrome) at the bottom |
+| **Pure Web Audio playback** | No `<audio>` tag: `AudioContext` → `ArrayBuffer` → `decodeAudioData` → destination, with a built-in WAV fallback that also resamples exotic rates (24-bit/96 kHz mono plays) |
 
 Also included: instant search across the whole library (`⌘/Ctrl+F`), folder & file
 durations parsed straight from WAV/AIFF headers, live playhead timecode readout from
@@ -40,17 +41,17 @@ context menu with reveal/copy-path.
 
 ### Option A — ZXP package (recommended, signed)
 
-The repo ships a signed **`SFXManager-1.0.4.zxp`** (UCF + W3C XML-DSig,
+The repo ships a signed **`SFXManager-1.0.5.zxp`** (UCF + W3C XML-DSig,
 cert: *Anamoul Houqe Nadim · valid to 2126*).
 
 1. Install any ZXP installer once:
    [Anastasiy’s Extension Manager](https://install.anastasiy.com/) (mac/win) or
    [ZXP Installer by aescripts](https://aescripts.com/learn/zxp-installer/)
-2. Drop **`SFXManager-1.0.4.zxp`** onto it
+2. Drop **`SFXManager-1.0.5.zxp`** onto it
    (self-signed cert → the installer asks you to confirm “unknown publisher” — expected)
 3. Restart After Effects → **Window ▸ SFX Manager**
 
-CLI alternative: `ExManCmd --install SFXManager-1.0.4.zxp`
+CLI alternative: `ExManCmd --install SFXManager-1.0.5.zxp`
 
 ### Option B — one-click folder install
 **macOS:** double-click **`install_mac.command`** · **Windows:** double-click **`install_win.bat`**
@@ -71,9 +72,9 @@ Copy the `SFXManager/` folder to:
 
 ### Re-signing after changes (maintainers)
 ```bash
-python3 tools/zxp.py sign  SFXManager  SFXManager-1.0.4.zxp  \
+python3 tools/zxp.py sign  SFXManager  SFXManager-1.0.5.zxp  \
         certs/SFXManager-signing.key.pem  certs/SFXManager-signing.cert.pem
-python3 tools/zxp.py verify SFXManager-1.0.4.zxp     # ← always run this
+python3 tools/zxp.py verify SFXManager-1.0.5.zxp     # ← always run this
 ```
 The identity lives in `certs/SFXManager-signing.p12` (password `nadim.3x`, git-ignored —
 keep a backup). With it you can also re-create packages with Adobe’s official

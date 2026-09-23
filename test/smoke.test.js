@@ -91,6 +91,7 @@ async function main() {
   window.AudioContext = class {
     constructor() {
       this.state = "running";
+      this.sampleRate = 44100;
       this.destination = {};
     }
     get currentTime() { return (Date.now() - t0) / 1000; }
@@ -105,7 +106,27 @@ async function main() {
       };
       return src;
     }
-    decodeAudioData(ab, ok) {
+    createBuffer(ch, len, rate) {
+      // mirror Chromium behaviour: refuse rates outside the context's range
+      // when the test sets __forceHiRateReject (e.g. 96 kHz on old CEP)
+      if (window.__forceHiRateReject && rate !== this.sampleRate) {
+        throw new Error("NotSupportedError: sampleRate " + rate);
+      }
+      const chans = [];
+      for (let i = 0; i < ch; i++) chans.push(new Float32Array(len));
+      return {
+        duration: len / rate, length: len, numberOfChannels: ch, sampleRate: rate,
+        getChannelData: (i) => chans[i]
+      };
+    }
+    decodeAudioData(ab, ok, err) {
+      if (window.__forceNativeFail) {
+        const e = new Error("EncodingError: codec error (simulated)");
+        if (err) err(e);
+        const rejected = Promise.reject(e);
+        rejected.catch(() => {});
+        return rejected;
+      }
       const buf = fakeBuffer(ab);
       if (ok) ok(buf);
       return Promise.resolve(buf);
@@ -325,14 +346,44 @@ async function main() {
   check("swatch applies tag", JSON.parse(window.localStorage.getItem("sfxm.v1")).tags[r0.dataset.path] === 3);
   check("context menu closes after choice", $("ctxMenu").classList.contains("hidden"));
 
-  /* ================= modals & theme ================= */
-  console.log("\n── modals, about, theme ──");
-  click($("btnAbout"));
-  check("about modal opens", !$("aboutOverlay").classList.contains("hidden"));
-  check("about shows the name", $("aboutOverlay").textContent.indexOf("Anamoul Houqe Nadim") >= 0);
-  check("about shows instagram handle", $("aboutOverlay").textContent.indexOf("instagram.com/nadim.3x") >= 0);
-  click($("aboutOverlay").querySelector("[data-close]"));
-  check("about modal closes", $("aboutOverlay").classList.contains("hidden"));
+  /* ================= settings, about, theme ================= */
+  console.log("\n── settings, about, theme ──");
+  check("settings button replaces about", !!$("btnSettings") && !$("btnAbout"));
+  click($("btnSettings"));
+  check("settings modal opens", !$("settingsOverlay").classList.contains("hidden"));
+  check("settings shows the name", $("settingsAbout").textContent.indexOf("Anamoul Houqe Nadim") >= 0);
+  const igBtn = $("btnInstagram");
+  const igLabel = igBtn ? igBtn.textContent.replace(/\s+/g, " ").trim() : "";
+  check("instagram button: label only, no URL",
+    igLabel === "Instagram" && igLabel.indexOf("instagram.com") < 0 && igLabel.indexOf("http") < 0,
+    JSON.stringify(igLabel));
+  const openedUrls = [];
+  const origOpen = window.open;
+  window.open = function (u) { openedUrls.push(String(u)); return null; };
+  click(igBtn);
+  window.open = origOpen;
+  check("instagram click opens default browser",
+    openedUrls.length === 1 && openedUrls[0].indexOf("instagram.com/nadim.3x") >= 0,
+    JSON.stringify(openedUrls));
+
+  // custom accent selector
+  click(document.querySelector('.accent-swatch[data-accent="#30d158"]'));
+  check("accent applied live", document.documentElement.getAttribute("data-accent") === "#30d158");
+  check("accent css vars set",
+    document.documentElement.style.getPropertyValue("--accent") === "#30d158" &&
+    /48,\s*209,\s*88/.test(document.documentElement.style.getPropertyValue("--accent-rgb") || "48, 209, 88"),
+    document.documentElement.style.getPropertyValue("--accent-rgb"));
+  check("accent persisted",
+    JSON.parse(window.localStorage.getItem("sfxm.v1")).accent === "#30d158");
+  const ci = $("accentCustom");
+  ci.value = "#bf5af2";
+  ci.dispatchEvent(new window.Event("input", { bubbles: true }));
+  check("custom colour picker works", document.documentElement.getAttribute("data-accent") === "#bf5af2",
+    document.documentElement.getAttribute("data-accent"));
+  click(document.querySelector('.accent-swatch[data-accent="#066ce7"]'));
+  check("back to default SFX blue", document.documentElement.getAttribute("data-accent") === "#066ce7");
+  click($("settingsOverlay").querySelector("[data-close]"));
+  check("settings modal closes", $("settingsOverlay").classList.contains("hidden"));
 
   key("?");
   check("? opens shortcuts", !$("helpOverlay").classList.contains("hidden"));
@@ -558,6 +609,63 @@ async function main() {
   check("truncated data clamps (no crash)", !!tr && tr.frames === 2, tr && tr.frames);
   check("non-WAV → null", AE.parseWav(
     new Uint8Array([0x49, 0x44, 0x33, 3, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4]).buffer) === null);
+
+  // the reported failing file: 24-bit / 96 kHz / mono PCM WAV
+  const pcm24m = new Uint8Array(300); // 100 frames × 3 bytes
+  for (let i = 0; i < 100; i++) { pcm24m[i * 3 + 2] = 0x40; } // +0.5 all frames
+  const wav24 = makeWav({ tag: 1, ch: 1, rate: 96000, bits: 24, data: pcm24m });
+  r = AE.parseWav(wav24);
+  check("24-bit/96k mono PCM parses", !!r && r.frames === 100 && r.sampleRate === 96000,
+    r && (r.frames + "@" + r.sampleRate));
+  check("24-bit/96k mono sample value", !!r && approx(r.channels[0][0], 0.5, 0.001));
+
+  // full E2E: native decodeAudioData throws a codec error → fallback decode
+  // → context refuses 96 kHz → linear resample → playable buffer
+  const TEST24 = "/SFX Library/Risers/24bit96k Mono Test.wav";
+  const origRead = window.Mock.readFileBuffer;
+  window.Mock.readFileBuffer = function (p, cb) {
+    if (p === TEST24) { setTimeout(function () { cb(null, wav24.slice(0)); }, 5); return; }
+    origRead(p, cb);
+  };
+  window.__forceNativeFail = true;
+  window.__forceHiRateReject = true;
+  try {
+    const rec24 = await AE.load(TEST24, "24bit96k Mono Test.wav");
+    check("24/96 codec-error → fallback decode (E2E)",
+      !!rec24 && rec24.duration > 0.0009 && rec24.duration < 0.0012,
+      rec24 && rec24.duration);
+    check("96k resampled to context rate", !!rec24 && rec24.buffer.sampleRate === 44100,
+      rec24 && rec24.buffer.sampleRate);
+  } catch (e24) {
+    check("24/96 codec-error → fallback decode (E2E)", false, String(e24));
+    check("96k resampled to context rate", false, String(e24));
+  }
+
+  // plain native-fail fallback at normal rate (no resample needed)
+  const T2 = "/SFX Library/Transitions/Logo Reveal Sting.wav";
+  AE.invalidate(T2);
+  try {
+    const rec2 = await AE.load(T2, "Logo Reveal Sting.wav");
+    check("native codec-error → WAV fallback (E2E)", !!rec2 && rec2.duration > 0,
+      rec2 && rec2.duration);
+  } catch (e2) {
+    check("native codec-error → WAV fallback (E2E)", false, String(e2));
+  }
+  window.__forceNativeFail = false;
+  window.__forceHiRateReject = false;
+  window.Mock.readFileBuffer = origRead;
+
+  // explicit single-call pipeline API: AudioContext → ArrayBuffer →
+  // decodeAudioData → destination
+  check("playLocalFile exported", typeof AE.playLocalFile === "function");
+  const T3 = "/SFX Library/Impacts/Metal Slam.wav";
+  AE.invalidate(T3);
+  try {
+    const rec3 = await AE.playLocalFile(T3, "Metal Slam.wav");
+    check("playLocalFile decodes & plays", !!rec3 && rec3.duration > 0, rec3 && rec3.duration);
+  } catch (e3) {
+    check("playLocalFile decodes & plays", false, String(e3));
+  }
 
   /* ================= drag payload ================= */
   console.log("\n── drag & drop payload ──");
