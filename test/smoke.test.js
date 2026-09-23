@@ -363,6 +363,21 @@ async function main() {
   await sleep(700); // let "All Sounds" finish loading for the next section
   check("list ready after drawer nav", rows().length > 5, "rows=" + rows().length);
 
+  /* ================= percent-encoded names ================= */
+  console.log("\n── percent-encoded names ──");
+  const encRows = rows().filter((r) => r.dataset.path.indexOf("%20") >= 0);
+  check("encoded filenames present", encRows.length >= 2, "n=" + encRows.length);
+  const decRow = encRows.find((r) =>
+    r.querySelector(".row-name").textContent.indexOf("Correct  Approve Button") === 0);
+  check("row displays decoded name", !!decRow,
+    decRow && decRow.querySelector(".row-name").textContent);
+  check("data-path keeps real encoded path",
+    !!decRow && decRow.dataset.path.indexOf("%20") >= 0);
+  const labels = [...document.querySelectorAll("#tree .tree-label")].map((e) => e.textContent);
+  check("tree shows decoded folder", labels.some((l) => l.indexOf("Button Pack") >= 0 && l.indexOf("%") < 0),
+    JSON.stringify(labels));
+  check("tree decodes emoji percent-sequences", labels.some((l) => l.indexOf("\uD83C\uDFB5") >= 0));
+
   /* ================= drag payload ================= */
   console.log("\n── drag & drop payload ──");
   let dragData = null;

@@ -55,6 +55,10 @@ var Mock = (function () {
             "Scene Transition Deep.wav": [1.6, "whoosh"],
             "Logo Reveal Sting.wav": [2.5, "riser"],
             "Text Whoosh In.wav": [0.6, "whoosh"]
+        },
+        "Button%20Pack%20%F0%9F%8E%B5": {
+            "Click%20Soft%20%F0%9F%94%B5.wav": [0.3, "click"],
+            "Correct%20%20Approve%20Button.wav": [0.9, "ui"]
         }
     };
 

@@ -30,7 +30,16 @@
         var i = Math.max(s.lastIndexOf("/"), s.lastIndexOf("\\"));
         return i > 0 ? s.substring(0, i) : s;
     }
-    function baseNameFull(p) { return String(p).split(/[\\/]/).pop(); }
+    /* Some sound packs ship percent-encoded filenames ("Button%20Click.wav"
+       or UTF-8 emoji as %F0%9F…). Decode for DISPLAY only — stored paths,
+       data-path attributes and lookups always keep the real on-disk name. */
+    function decodeName(s) {
+        s = String(s);
+        if (s.indexOf("%") === -1) return s;
+        try { return decodeURIComponent(s); } catch (e) { return s; }
+    }
+
+    function baseNameFull(p) { return decodeName(String(p).split(/[\\/]/).pop()); }
 
     function fmtTime(sec) {
         if (!isFinite(sec) || sec < 0) sec = 0;
@@ -159,7 +168,7 @@
         row.innerHTML =
             '<span class="tree-chevron empty">' + CHEV_ICO + "</span>" +
             FOLDER_ICO +
-            '<span class="tree-label">' + escHtml(entry.name) + "</span>";
+            '<span class="tree-label">' + escHtml(decodeName(entry.name)) + "</span>";
 
         var children = document.createElement("div");
         children.className = "tree-children";
@@ -353,11 +362,13 @@
             for (var i = 0; i < files.length; i++) {
                 var f = files[i];
                 var nl = f.name.toLowerCase();
+                var nld = decodeName(f.name).toLowerCase();
                 var pl = f.path.toLowerCase();
+                var pld = decodeName(f.path).toLowerCase();
                 var score = -1;
-                if (nl.indexOf(ql) === 0) score = 0;
-                else if (nl.indexOf(ql) > 0) score = 1;
-                else if (pl.indexOf(ql) >= 0) score = 2;
+                if (nl.indexOf(ql) === 0 || nld.indexOf(ql) === 0) score = 0;
+                else if (nl.indexOf(ql) > 0 || nld.indexOf(ql) > 0) score = 1;
+                else if (pl.indexOf(ql) >= 0 || pld.indexOf(ql) >= 0) score = 2;
                 if (score >= 0) hits.push({ f: f, score: score });
             }
             hits.sort(function (a, b) {
@@ -375,7 +386,7 @@
 
     function setListHeader(title, path, count) {
         $("listTitle").textContent = title;
-        $("listPath").textContent = path || "";
+        $("listPath").textContent = path ? decodeName(path) : "";
         $("listPath").title = path || "";
         if (typeof count === "number") {
             $("listCount").textContent = count;
@@ -487,7 +498,7 @@
                 ' data-path="' + escHtml(it.path) + '" draggable="true" style="--i:' + Math.min(i, 16) + '">' +
                 '<button class="row-play" title="Preview">' + PLAY_SVG + "</button>" +
                 '<div class="row-meta">' +
-                '<div class="row-name">' + escHtml(baseName(it.name)) + "</div>" +
+                '<div class="row-name">' + escHtml(decodeName(baseName(it.name))) + "</div>" +
                 (sub.length ? '<div class="row-sub">' + sub.join("<span>·</span>") + "</div>" : "") +
                 "</div>" +
                 '<span class="row-dur">' + (playing || AudioEngine.current() && AudioEngine.current().path === it.path
@@ -567,7 +578,7 @@
         }
         Store.set({ lastFile: path });
 
-        var name = baseName(path);
+        var name = decodeName(baseName(path));
         $("btnAdd").disabled = false;
         $("btnPlay").disabled = false;
         $("btnStop").disabled = false;
@@ -643,7 +654,7 @@
                 var btn = $("btnAdd");
                 btn.style.transform = "scale(.95)";
                 setTimeout(function () { btn.style.transform = ""; }, 140);
-                toast('Added “' + baseName(path) + '” at ' + (res.timecode || ""), "ok");
+                toast('Added “' + decodeName(baseName(path)) + '” at ' + (res.timecode || ""), "ok");
                 pollAE(true);
             } else {
                 toast((res && res.error) || "Could not add sound", "err");
@@ -1290,7 +1301,7 @@
             showLibrary();
             var s2 = Store.get();
             if (s2.lastFile) {
-                $("npName").textContent = baseName(s2.lastFile) + "  (press Space to preview)";
+                $("npName").textContent = decodeName(baseName(s2.lastFile)) + "  (press Space to preview)";
             }
         });
 
