@@ -224,6 +224,7 @@ var Mock = (function () {
         var t = ((Date.now() - fakeState.start) / 1000) % fakeState.duration;
         return {
             ok: true,
+            host: "AE",
             hasComp: fakeState.hasComp,
             comp: fakeState.comp,
             time: t,

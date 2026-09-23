@@ -368,10 +368,32 @@ var Bridge = (function () {
 
     /* ------------------------------------------------------------------ */
 
+    /* ------------------------------------------------------------------ */
+    /* Host app detection: "AE" or "PPRO" (Premiere Pro), cached.          */
+    /* ------------------------------------------------------------------ */
+
+    var _hostApp = null;
+    function hostApp() {
+        if (_hostApp) return _hostApp;
+        if (!isCEP) { _hostApp = "AE"; return _hostApp; }
+        try {
+            var env = JSON.stringify(window.__adobe_cep__.getHostEnvironment() || {});
+            if (env.indexOf("PPRO") >= 0 ||
+                env.indexOf("Premiere") >= 0 || env.indexOf("premiere") >= 0) {
+                _hostApp = "PPRO";
+            } else if (env.indexOf("AEFT") >= 0 || env.indexOf("After Effects") >= 0) {
+                _hostApp = "AE";
+            }
+        } catch (e) {}
+        if (!_hostApp) _hostApp = "AE";
+        return _hostApp;
+    }
+
     var Bridge = {
         isCEP: isCEP,
         hasNode: hasNode,
         evalHost: evalHost,
+        hostApp: hostApp,
         pickFolder: pickFolder,
         extensionPath: extensionPath,
         userDataPath: userDataPath,

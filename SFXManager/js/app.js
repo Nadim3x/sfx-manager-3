@@ -65,7 +65,7 @@
         tagFilter: 0,
         items: [],              // [{name, path, size}]
         selectedPath: "",
-        aeState: { hasComp: false, comp: "", time: 0, fps: 24, timecode: "00:00:00:00", connected: false },
+        aeState: { host: "AE", hasComp: false, comp: "", time: 0, fps: 24, timecode: "00:00:00:00", connected: false },
         openFolders: {},
         durations: {},          // path -> seconds
         searchTimer: null,
@@ -643,7 +643,7 @@
             return;
         }
         if (!S.aeState.hasComp && Bridge.isCEP) {
-            toast("Open a composition first", "err");
+            toast(Bridge.hostApp() === "PPRO" ? "Open a sequence first" : "Open a composition first", "err");
             return;
         }
         Bridge.evalHost("sfxm_addAtPlayhead", [path], function (res) {
@@ -654,7 +654,9 @@
                 var btn = $("btnAdd");
                 btn.style.transform = "scale(.95)";
                 setTimeout(function () { btn.style.transform = ""; }, 140);
-                toast('Added “' + decodeName(baseName(path)) + '” at ' + (res.timecode || ""), "ok");
+                var addMsg = 'Added “' + decodeName(baseName(path)) + '” at ' + (res.timecode || "");
+                if (res.overwrote) addMsg += "  (overwrote a clip — Ctrl/Cmd+Z to undo)";
+                toast(addMsg, res.overwrote ? "warn" : "ok");
                 pollAE(true);
             } else {
                 toast((res && res.error) || "Could not add sound", "err");
@@ -1123,18 +1125,21 @@
             if (res && res.ok) {
                 S.aeState = res;
                 dot.classList.remove("off", "err");
+                var hostName = res.host || Bridge.hostApp();
                 if (res.hasComp) {
                     $("aeState").textContent = "Playhead " + res.timecode + "  ·  " + res.comp;
                     $("playheadChip").textContent = res.timecode;
                 } else {
-                    $("aeState").textContent = "No composition open";
+                    $("aeState").textContent = hostName === "PPRO" ? "No sequence open" : "No composition open";
                     $("playheadChip").textContent = "––:––:––:––";
                 }
             } else {
                 S.aeState.hasComp = false;
                 dot.classList.remove("off");
                 dot.classList.add("err");
-                $("aeState").textContent = "After Effects not connected";
+                $("aeState").textContent = Bridge.hostApp() === "PPRO"
+                    ? "Premiere Pro not connected"
+                    : "After Effects not connected";
             }
         });
     }

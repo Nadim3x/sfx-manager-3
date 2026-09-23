@@ -67,9 +67,8 @@
         return d > 0 ? n.substring(0, d) : n;
     }
 
-    function timecode(comp, t) {
-        // HH:MM:SS:FF using the comp frame rate
-        var fps = comp.frameRate;
+    function timecodeFps(fps, t) {
+        // HH:MM:SS:FF using the given frame rate
         if (!fps || fps <= 0) fps = 24;
         var totalFrames = Math.round(t * fps);
         var ff = totalFrames % Math.round(fps);
@@ -82,16 +81,202 @@
         return pad(hh) + ":" + pad(mm) + ":" + pad(ss) + ":" + pad(ff);
     }
 
+    function timecode(comp, t) { return timecodeFps(comp.frameRate, t); }
+
+    /* ---------- host detection (After Effects vs Premiere Pro) ---------- */
+
+    function isPremiere() {
+        try {
+            if (String(app.name || "").toLowerCase().indexOf("premiere") >= 0) return true;
+        } catch (eName) {}
+        try {
+            // Premiere's Project always exposes activeSequence (null when none);
+            // After Effects' Project has no such property at all.
+            if (app.project && typeof app.project.activeSequence !== "undefined") return true;
+        } catch (eSeq) {}
+        return false;
+    }
+
+    function seqFps(seq) {
+        try {
+            var st = seq.getSettings();
+            if (st) {
+                if (st.videoFrameRate) {
+                    var fr = parseFloat(st.videoFrameRate);
+                    if (fr > 1 && fr < 240) return fr;
+                }
+                if (st.frameDurationTicks) {
+                    var fd = Number(st.frameDurationTicks);
+                    if (fd > 0) {
+                        var f2 = 254016000000 / fd;
+                        if (f2 > 1 && f2 < 240) return f2;
+                    }
+                }
+            }
+        } catch (e) {}
+        return 24;
+    }
+
+    /* Premiere: walk root bins for a project item with this media path.
+       Premiere collections are 0-based (AE is 1-based) — scan both. */
+    function findPPItem(path) {
+        var norm = String(path).toLowerCase().replace(/\\/g, "/");
+        function walk(items) {
+            if (!items) return null;
+            var n = 0;
+            try { n = items.numItems; } catch (eN) {}
+            if (!n) { try { n = items.length; } catch (eL) {} }
+            for (var i = 0; i <= n; i++) {
+                var it = null;
+                try { it = items[i]; } catch (eIt) {}
+                if (!it) continue;
+                try {
+                    if (it.getMediaPath) {
+                        var mp = String(it.getMediaPath()).toLowerCase().replace(/\\/g, "/");
+                        if (mp === norm) return it;
+                    }
+                } catch (eMp) {}
+                try {
+                    if (it.children && it.children.numItems) {
+                        var r = walk(it.children);
+                        if (r) return r;
+                    }
+                } catch (eCh) {}
+            }
+            return null;
+        }
+        try { return walk(app.project.rootItem.children); } catch (e) { return null; }
+    }
+
+    function trackFree(track, tSec) {
+        try {
+            var clips = track.clips;
+            var n = 0;
+            try { n = clips.numItems; } catch (eN) {}
+            if (!n) { try { n = clips.length; } catch (eL) {} }
+            for (var i = 0; i < n; i++) {
+                var c = null;
+                try { c = clips[i]; } catch (eC) {}
+                if (!c) continue;
+                try {
+                    var st = Number(c.start.seconds), en = Number(c.end.seconds);
+                    if (tSec >= st && tSec < en) return false;
+                } catch (eT) {}
+            }
+            return true;
+        } catch (e) { return true; }
+    }
+
+    /**
+     * Place an imported project item on a Premiere audio track at the playhead.
+     * Units disagree across Premiere versions/docs (seconds vs ticks) — try
+     * each known-good form until one is accepted.
+     */
+    function placeOnTrack(track, pi, pos) {
+        try { if (track.overwriteClip(pi, pos.seconds) !== false) return true; } catch (e1) {}
+        try { if (track.overwriteClip(pi, String(pos.ticks)) !== false) return true; } catch (e2) {}
+        try {
+            var t = new Time();
+            t.ticks = String(pos.ticks);
+            if (track.overwriteClip(pi, t.seconds) !== false) return true;
+        } catch (e3) {}
+        try { if (track.insertClip(pi, String(pos.ticks)) !== false) return true; } catch (e4) {}
+        try { if (track.insertClip(pi, pos.seconds) !== false) return true; } catch (e5) {}
+        return false;
+    }
+
+    function pproImport(path, file) {
+        var existing = findPPItem(path);
+        if (existing) {
+            var exName = "";
+            try { exName = String(existing.name || baseName(path)); } catch (e) { exName = baseName(path); }
+            return ok('"name":' + jstr(exName) + ',"imported":false');
+        }
+        var item = app.project.importFile(new ImportOptions(file));
+        if (!item) return fail("Import failed.");
+        var nm = "";
+        try { nm = String(item.name || baseName(path)); } catch (e2) { nm = baseName(path); }
+        return ok('"name":' + jstr(nm) + ',"imported":true');
+    }
+
+    function pproAddAtPlayhead(path, file) {
+        var seq = app.project.activeSequence;
+        if (!seq) return fail("No active sequence. Open a sequence first.");
+
+        var pi = findPPItem(path);
+        var importedNow = false;
+        if (!pi) {
+            pi = app.project.importFile(new ImportOptions(file));
+            importedNow = true;
+        }
+        if (!pi) return fail("Premiere Pro could not import this file.");
+
+        var pos = seq.getPlayerPosition();
+        if (!pos) return fail("Could not read the playhead position.");
+        var pp = Number(pos.seconds);
+        if (isNaN(pp)) pp = 0;
+
+        // Pick an audio track with free space at the playhead; otherwise use
+        // the last audio track (overwrites there — user can undo with Ctrl+Z).
+        var tracks = seq.audioTracks;
+        var count = 0;
+        try { count = tracks.numTracks; } catch (eN) {}
+        if (!count) { try { count = tracks.length; } catch (eL) {} }
+        if (!count) return fail("Sequence has no audio tracks.");
+
+        var tIdx = -1, overwrote = false;
+        for (var i = 0; i < count; i++) {
+            var tr = null;
+            try { tr = tracks[i]; } catch (eTr) {}
+            if (tr && trackFree(tr, pp)) { tIdx = i; break; }
+        }
+        if (tIdx < 0) { tIdx = count - 1; overwrote = true; }
+        var track = tracks[tIdx];
+        if (!track) return fail("Could not find an audio track.");
+        if (!placeOnTrack(track, pi, pos)) return fail("Could not place the clip on the timeline.");
+
+        var fps = seqFps(seq);
+        return ok(
+            '"host":"PPRO",' +
+            '"name":' + jstr(baseName(path)) +
+            ',"track":' + jnum(tIdx) +
+            ',"time":' + jnum(pp) +
+            ',"timecode":' + jstr(timecodeFps(fps, pp)) +
+            ',"imported":' + (importedNow ? "true" : "false") +
+            ',"overwrote":' + (overwrote ? "true" : "false")
+        );
+    }
+
     /* ---------- public API ---------- */
 
     /** Lightweight state poll: current comp + playhead. */
     function sfxm_getState() {
         try {
+            if (isPremiere()) {
+                var seq = null;
+                try { seq = app.project.activeSequence; } catch (eSeq) {}
+                if (!seq) {
+                    return '{"ok":true,"host":"PPRO","hasComp":false,"comp":"","time":0,"fps":24,"timecode":"00:00:00:00"}';
+                }
+                var pos = null;
+                try { pos = seq.getPlayerPosition(); } catch (ePos) {}
+                var t = pos ? Number(pos.seconds) : 0;
+                if (isNaN(t)) t = 0;
+                var fps = seqFps(seq);
+                var sname = "";
+                try { sname = String(seq.name || ""); } catch (eNm) {}
+                return '{"ok":true,"host":"PPRO","hasComp":true,' +
+                    '"comp":' + jstr(sname || "Active Sequence") + ',' +
+                    '"time":' + jnum(t) + ',' +
+                    '"duration":0,' +
+                    '"fps":' + jnum(fps) + ',' +
+                    '"timecode":' + jstr(timecodeFps(fps, t)) + '}';
+            }
             var comp = getComp();
             if (!comp) {
-                return '{"ok":true,"hasComp":false,"comp":"","time":0,"fps":24,"timecode":"00:00:00:00"}';
+                return '{"ok":true,"host":"AE","hasComp":false,"comp":"","time":0,"fps":24,"timecode":"00:00:00:00"}';
             }
-            return '{"ok":true,"hasComp":true,' +
+            return '{"ok":true,"host":"AE","hasComp":true,' +
                 '"comp":' + jstr(comp.name) + ',' +
                 '"time":' + jnum(comp.time) + ',' +
                 '"duration":' + jnum(comp.duration) + ',' +
@@ -110,6 +295,8 @@
         try {
             var file = new File(path);
             if (!file.exists) return fail("File not found on disk.");
+
+            if (isPremiere()) return pproAddAtPlayhead(path, file);
 
             var comp = getComp();
             if (!comp) return fail("No active composition. Open a comp first.");
@@ -159,6 +346,7 @@
         try {
             var file = new File(path);
             if (!file.exists) return fail("File not found on disk.");
+            if (isPremiere()) return pproImport(path, file);
             var existing = findFootageByPath(path);
             if (existing) {
                 return ok('"name":' + jstr(existing.name) + ',"imported":false');

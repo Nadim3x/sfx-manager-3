@@ -85,6 +85,34 @@ var AudioEngine = (function () {
         });
     }
 
+    /**
+     * Native decode first, with a built-in WAV parser as fallback for codecs
+     * Chromium's decodeAudioData refuses (µ-law, A-law, ADPCM, 24-bit, odd
+     * containers). The ArrayBuffer is copied for the native attempt because
+     * older CEP Chromium versions detach it on failure.
+     */
+    function decodeAny(ab) {
+        return new Promise(function (resolve, reject) {
+            decodeArray(ab.slice(0)).then(resolve, function (nativeErr) {
+                var parsed = null;
+                try { parsed = parseWav(ab); } catch (eParse) { parsed = null; }
+                if (!parsed) { reject(nativeErr || new Error("Unsupported audio format")); return; }
+                var c = ensureCtx();
+                if (!c) { reject(new Error("Web Audio unavailable")); return; }
+                try {
+                    var buf = c.createBuffer(parsed.channels.length, Math.max(1, parsed.frames), parsed.sampleRate);
+                    for (var i = 0; i < parsed.channels.length; i++) {
+                        buf.getChannelData(i).set(parsed.channels[i]);
+                    }
+                    resolve(buf);
+                } catch (eCreate) {
+                    reject(new Error("Decoded " + parsed.formatName + " WAV, but " +
+                        parsed.sampleRate + " Hz playback is unsupported"));
+                }
+            });
+        });
+    }
+
     function computePeaks(buffer) {
         var len = buffer.length;
         var ch = buffer.numberOfChannels;
@@ -133,7 +161,7 @@ var AudioEngine = (function () {
         var promise = new Promise(function (resolve, reject) {
             Bridge.readFileBuffer(path, function (err, ab) {
                 if (err) { reject(new Error(err)); return; }
-                decodeArray(ab).then(function (buffer) {
+                decodeAny(ab).then(function (buffer) {
                     var rec = {
                         path: path,
                         name: name || path.split(/[\\/]/).pop(),
@@ -153,6 +181,290 @@ var AudioEngine = (function () {
 
         pending[path] = promise;
         return promise;
+    }
+
+    /* ---------------- built-in WAV decoder (fallback) ---------------- */
+
+    var MS_ADAPT = [230, 230, 230, 230, 307, 409, 512, 614, 768, 614, 512, 409, 307, 230, 230, 230];
+    var IMA_INDEX = [-1, -1, -1, -1, 2, 4, 6, 8, -1, -1, -1, -1, 2, 4, 6, 8];
+    var IMA_STEP = [7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 19, 21, 23, 25, 28, 31,
+        34, 37, 41, 45, 50, 55, 60, 66, 73, 80, 88, 97, 107, 118, 130, 143, 157, 173,
+        190, 209, 230, 253, 279, 307, 337, 371, 408, 449, 494, 544, 598, 658, 724, 796,
+        876, 963, 1060, 1166, 1282, 1411, 1552, 1707, 1878, 2066, 2272, 2499, 2749, 3024,
+        3327, 3660, 4026, 4428, 4871, 5358, 5894, 6484, 7132, 7845, 8630, 9493, 10442,
+        11487, 12635, 13899, 15289, 16818, 18500, 20350, 22385, 24623, 27086, 29794, 32767];
+
+    /* G.711 reference decoders (Sun/libaudio algorithm), 16-bit linear out */
+    function ulaw16(u) {
+        u = ~u & 0xff;
+        var t = ((u & 0x0f) << 3) + 0x84;
+        t <<= (u & 0x70) >> 4;
+        return (u & 0x80) ? (0x84 - t) : (t - 0x84);
+    }
+
+    function alaw16(a) {
+        a ^= 0x55;
+        var t = (a & 0x0f) << 4;
+        var seg = (a & 0x70) >> 4;
+        switch (seg) {
+            case 0: t += 8; break;
+            case 1: t += 0x108; break;
+            default: t += 0x108; t <<= seg - 1; break;
+        }
+        return (a & 0x80) ? t : -t;
+    }
+
+    function decodePcm(data, ch, bits) {
+        if (bits !== 8 && bits !== 16 && bits !== 24 && bits !== 32) return null;
+        var bytes = bits >> 3;
+        var frames = Math.floor(data.length / (bytes * ch));
+        if (frames <= 0) return null;
+        var dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
+        var out = [];
+        for (var c = 0; c < ch; c++) out.push(new Float32Array(frames));
+        for (var f = 0; f < frames; f++) {
+            for (var c2 = 0; c2 < ch; c2++) {
+                var off = (f * ch + c2) * bytes;
+                var v;
+                if (bits === 8) v = (data[off] - 128) / 128;
+                else if (bits === 16) v = dv.getInt16(off, true) / 32768;
+                else if (bits === 24) {
+                    var v24 = data[off] | (data[off + 1] << 8) | (data[off + 2] << 16);
+                    if (v24 & 0x800000) v24 -= 0x1000000;
+                    v = v24 / 8388608;
+                } else v = dv.getInt32(off, true) / 2147483648;
+                out[c2][f] = v;
+            }
+        }
+        return { channels: out, frames: frames, formatName: "PCM " + bits + "-bit" };
+    }
+
+    function decodeFloat(data, ch, bits) {
+        if (bits !== 32 && bits !== 64) return null;
+        var bytes = bits >> 3;
+        var frames = Math.floor(data.length / (bytes * ch));
+        if (frames <= 0) return null;
+        var dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
+        var out = [];
+        for (var c = 0; c < ch; c++) out.push(new Float32Array(frames));
+        for (var f = 0; f < frames; f++) {
+            for (var c2 = 0; c2 < ch; c2++) {
+                var off = (f * ch + c2) * bytes;
+                out[c2][f] = bits === 32 ? dv.getFloat32(off, true) : dv.getFloat64(off, true);
+            }
+        }
+        return { channels: out, frames: frames, formatName: "float " + bits + "-bit" };
+    }
+
+    function decodeCompanded(data, ch, kind) {
+        var frames = Math.floor(data.length / ch);
+        if (frames <= 0) return null;
+        var out = [];
+        for (var c = 0; c < ch; c++) out.push(new Float32Array(frames));
+        for (var f = 0; f < frames; f++) {
+            for (var c2 = 0; c2 < ch; c2++) {
+                var b = data[f * ch + c2];
+                out[c2][f] = (kind === "ulaw" ? ulaw16(b) : alaw16(b)) / 32768;
+            }
+        }
+        return { channels: out, frames: frames, formatName: kind === "ulaw" ? "\u00b5-law" : "A-law" };
+    }
+
+    function decodeMsAdpcm(data, ch, blockAlign, fmtBytes) {
+        if (ch > 4 || blockAlign < 7 * ch) return null;
+        var dvF = new DataView(fmtBytes.buffer, fmtBytes.byteOffset, fmtBytes.byteLength);
+        var coef1 = [256, 512, 0, 192, 240, 460, 392, 1728];
+        var coef2 = [0, -256, 0, 64, 0, -208, -232, -400];
+        if (fmtBytes.length >= 18) {
+            var cbSize = dvF.getUint16(16, true);
+            var nCoef = 0, cOff = 0;
+            if (18 + cbSize === fmtBytes.length && cbSize >= 4) {
+                nCoef = dvF.getUint16(20, true); cOff = 22;
+            } else if (fmtBytes.length >= 20) {
+                nCoef = dvF.getUint16(18, true); cOff = 20;
+            }
+            if (nCoef > 0 && nCoef <= 8 && cOff + nCoef * 4 <= fmtBytes.length) {
+                coef1 = []; coef2 = [];
+                for (var k = 0; k < nCoef; k++) {
+                    coef1.push(dvF.getInt16(cOff + k * 4, true));
+                    coef2.push(dvF.getInt16(cOff + k * 4 + 2, true));
+                }
+            }
+        }
+        var blocks = Math.floor(data.length / blockAlign);
+        if (blocks <= 0) return null;
+        var samplesPerBlock = Math.floor((blockAlign - 7 * ch) * 2 / ch) + 2;
+        var frames = blocks * samplesPerBlock;
+        var out = [];
+        for (var c = 0; c < ch; c++) out.push(new Float32Array(frames));
+        var dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
+        var fo = 0;
+        for (var b = 0; b < blocks; b++) {
+            var o = b * blockAlign;
+            var preds = [], deltas = [], s1 = [], s2 = [], c1;
+            for (c1 = 0; c1 < ch; c1++) {
+                var pn = data[o++];
+                preds.push(pn < coef1.length ? pn : 0);
+            }
+            for (c1 = 0; c1 < ch; c1++) { deltas.push(dv.getInt16(o, true)); o += 2; }
+            for (c1 = 0; c1 < ch; c1++) { s1.push(dv.getInt16(o, true)); o += 2; }
+            for (c1 = 0; c1 < ch; c1++) { s2.push(dv.getInt16(o, true)); o += 2; }
+            for (c1 = 0; c1 < ch; c1++) out[c1][fo] = s2[c1] / 32768;
+            for (c1 = 0; c1 < ch; c1++) out[c1][fo + 1] = s1[c1] / 32768;
+            var idx = 0;
+            var blockEnd = b * blockAlign + blockAlign;
+            while (o < blockEnd) {
+                var byteV = data[o++];
+                for (var half = 0; half < 2; half++) {
+                    var nib = half === 0 ? (byteV >> 4) : (byteV & 0x0f);
+                    var frPos = 2 + Math.floor(idx / ch);
+                    if (frPos >= samplesPerBlock) break;
+                    var cch = idx % ch;
+                    var predict = (s1[cch] * coef1[preds[cch]] + s2[cch] * coef2[preds[cch]]) >> 8;
+                    var dn = nib < 8 ? nib : nib - 16;
+                    var sample = predict + dn * deltas[cch];
+                    if (sample > 32767) sample = 32767;
+                    else if (sample < -32768) sample = -32768;
+                    s2[cch] = s1[cch];
+                    s1[cch] = sample;
+                    deltas[cch] = (MS_ADAPT[nib] * deltas[cch]) >> 8;
+                    if (deltas[cch] < 16) deltas[cch] = 16;
+                    out[cch][fo + frPos] = sample / 32768;
+                    idx++;
+                }
+                if (2 + Math.floor(idx / ch) >= samplesPerBlock) break;
+            }
+            fo += samplesPerBlock;
+        }
+        return { channels: out, frames: frames, formatName: "MS-ADPCM" };
+    }
+
+    function decodeImaAdpcm(data, ch, blockAlign) {
+        if (ch > 4 || blockAlign < 4 * ch) return null;
+        var blocks = Math.floor(data.length / blockAlign);
+        if (blocks <= 0) return null;
+        var perChBytes = Math.floor((blockAlign - 4 * ch) / ch);
+        var samplesPerBlock = perChBytes * 2 + 1;
+        var frames = blocks * samplesPerBlock;
+        var out = [];
+        for (var c = 0; c < ch; c++) out.push(new Float32Array(frames));
+        var dv = new DataView(data.buffer, data.byteOffset, data.byteLength);
+        var fo = 0;
+        for (var b = 0; b < blocks; b++) {
+            var o = b * blockAlign;
+            var samples = [], idxs = [], c1;
+            for (c1 = 0; c1 < ch; c1++) {
+                // header per channel: initial sample (i16) + step index (u8) + pad (u8)
+                samples.push(dv.getInt16(o, true)); o += 2;
+                var ix = data[o++];
+                o++;
+                if (ix > 88) ix = 88;
+                if (ix < 0) ix = 0;
+                idxs.push(ix);
+            }
+            for (c1 = 0; c1 < ch; c1++) out[c1][fo] = samples[c1] / 32768;
+            var p = 0;
+            var blockEnd = (b + 1) * blockAlign;
+            while (o < blockEnd) {
+                var byteV = data[o++];
+                for (var half = 0; half < 2; half++) {
+                    var nib = half === 0 ? (byteV & 0x0f) : (byteV >> 4);
+                    if (p >= (samplesPerBlock - 1) * ch) break;
+                    var cch = p % ch;
+                    var fr = 1 + Math.floor(p / ch);
+                    p++;
+                    var step = IMA_STEP[idxs[cch]];
+                    var diff = step >> 3;
+                    if (nib & 1) diff += step >> 2;
+                    if (nib & 2) diff += step >> 1;
+                    if (nib & 4) diff += step;
+                    var prev = samples[cch];
+                    if (nib & 8) prev -= diff; else prev += diff;
+                    if (prev > 32767) prev = 32767;
+                    else if (prev < -32768) prev = -32768;
+                    samples[cch] = prev;
+                    idxs[cch] += IMA_INDEX[nib];
+                    if (idxs[cch] < 0) idxs[cch] = 0;
+                    else if (idxs[cch] > 88) idxs[cch] = 88;
+                    out[cch][fr] = prev / 32768;
+                }
+                if (p >= (samplesPerBlock - 1) * ch) break;
+            }
+            fo += samplesPerBlock;
+        }
+        return { channels: out, frames: frames, formatName: "IMA-ADPCM" };
+    }
+
+    /**
+     * Parse a RIFF/WAVE file into { channels:[Float32Array], frames, sampleRate,
+     * formatName }. Returns null when the buffer is not a decodable WAV.
+     * Covers codecs Chromium refuses: PCM 8/16/24/32, IEEE float 32/64,
+     * \u00b5-law, A-law, WAVE_FORMAT_EXTENSIBLE, MS-ADPCM and IMA-ADPCM.
+     */
+    function parseWav(ab) {
+        try {
+            if (!ab || ab.byteLength < 44) return null;
+            var u8 = new Uint8Array(ab);
+            var dv = new DataView(ab);
+
+            // locate RIFF (some files carry junk/ID3 prefixes)
+            var riff = -1;
+            var scanMax = Math.min(u8.length - 12, 1024);
+            for (var st = 0; st <= scanMax; st++) {
+                if (u8[st] === 0x52 && u8[st + 1] === 0x49 &&
+                    u8[st + 2] === 0x46 && u8[st + 3] === 0x46) {
+                    riff = st; break;
+                }
+            }
+            if (riff < 0) return null;
+            if (u8[riff + 8] !== 0x57 || u8[riff + 9] !== 0x41 ||
+                u8[riff + 10] !== 0x56 || u8[riff + 11] !== 0x45) return null; // WAVE
+
+            var pos = riff + 12;
+            var fmt = null;
+            var dataOff = -1;
+            var dataSize = 0;
+            var end = u8.length;
+            while (pos + 8 <= end) {
+                var id = String.fromCharCode(u8[pos], u8[pos + 1], u8[pos + 2], u8[pos + 3]);
+                var sz = dv.getUint32(pos + 4, true);
+                if (sz === 0xffffffff) sz = end - (pos + 8); // streaming size
+                var body = pos + 8;
+                if (body + sz > end) sz = end - body; // truncated chunk
+                if (id === "fmt ") fmt = { off: body, len: sz };
+                else if (id === "data") { dataOff = body; dataSize = sz; break; }
+                if (sz <= 0) break;
+                pos = body + sz + (sz % 2);
+            }
+            if (!fmt || dataOff < 0 || fmt.len < 16) return null;
+
+            var tag = dv.getUint16(fmt.off, true);
+            var channels = dv.getUint16(fmt.off + 2, true);
+            var sampleRate = dv.getUint32(fmt.off + 4, true);
+            var blockAlign = dv.getUint16(fmt.off + 12, true) || 1;
+            var bits = dv.getUint16(fmt.off + 14, true);
+            if (tag === 0xfffe) {
+                // WAVE_FORMAT_EXTENSIBLE — real tag lives in the SubFormat GUID
+                if (fmt.len < 26) return null;
+                tag = dv.getUint16(fmt.off + 24, true);
+            }
+            if (!channels || channels > 32 || !sampleRate || dataSize <= 0) return null;
+
+            var data = u8.subarray(dataOff, dataOff + dataSize);
+            var fmtBytes = u8.subarray(fmt.off, fmt.off + fmt.len);
+            var out = null;
+            if (tag === 1) out = decodePcm(data, channels, bits);
+            else if (tag === 3) out = decodeFloat(data, channels, bits);
+            else if (tag === 6) out = decodeCompanded(data, channels, "ulaw");
+            else if (tag === 7) out = decodeCompanded(data, channels, "alaw");
+            else if (tag === 2) out = decodeMsAdpcm(data, channels, blockAlign, fmtBytes);
+            else if (tag === 17) out = decodeImaAdpcm(data, channels, blockAlign);
+            if (!out) return null;
+            out.sampleRate = sampleRate;
+            return out;
+        } catch (e) {
+            return null;
+        }
     }
 
     /* ---------------- quick duration from headers ---------------- */
@@ -614,6 +926,7 @@ var AudioEngine = (function () {
         isPlaying: function () { return playing; },
         current: function () { return current; },
         quickDuration: quickDuration,
+        parseWav: parseWav,
         Waveform: Waveform,
         animateDrawIn: animateDrawIn,
         invalidate: function (path) { delete cache[path]; delete pending[path]; }

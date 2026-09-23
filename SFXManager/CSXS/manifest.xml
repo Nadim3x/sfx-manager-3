@@ -1,18 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ExtensionManifest ExtensionBundleId="com.nadim.sfxmanager"
                    ExtensionBundleName="SFX Manager"
-                   ExtensionBundleVersion="1.0.3"
+                   ExtensionBundleVersion="1.0.4"
                    Version="4.0"
                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 
   <ExtensionList>
-    <Extension Id="com.nadim.sfxmanager.panel" Version="1.0.3"/>
+    <Extension Id="com.nadim.sfxmanager.panel" Version="1.0.4"/>
   </ExtensionList>
 
   <ExecutionEnvironment>
     <HostList>
       <!-- After Effects (AEFT) 18.0 = 2021 through current versions -->
       <Host Name="AEFT" Version="[18.0,99.9]"/>
+      <!-- Premiere Pro (PPRO) 14.0 = 2020 through current versions -->
+      <Host Name="PPRO" Version="[14.0,99.9]"/>
     </HostList>
     <LocaleList>
       <Locale Code="All"/>

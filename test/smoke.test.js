@@ -378,6 +378,187 @@ async function main() {
     JSON.stringify(labels));
   check("tree decodes emoji percent-sequences", labels.some((l) => l.indexOf("\uD83C\uDFB5") >= 0));
 
+  /* ================= host support (AE + Premiere Pro) ================= */
+  const B = window.Bridge;
+  const AE = window.AudioEngine;
+  console.log("\n── host support (AE / Premiere Pro) ──");
+  const manifestXml = fs.readFileSync(path.join(EXT, "CSXS/manifest.xml"), "utf8");
+  check("manifest targets After Effects (AEFT)", /Host Name="AEFT"/.test(manifestXml));
+  check("manifest targets Premiere Pro (PPRO)", /Host Name="PPRO"/.test(manifestXml));
+  const hostSrc = fs.readFileSync(path.join(EXT, "jsx/hostscript.jsx"), "utf8");
+  check("hostscript detects Premiere", hostSrc.indexOf("function isPremiere") >= 0);
+  check("hostscript places clips via overwriteClip", hostSrc.indexOf("overwriteClip") >= 0);
+  check("hostscript reads Premiere playhead", hostSrc.indexOf("getPlayerPosition") >= 0);
+
+  const realEvalHost = B.evalHost;
+  B.evalHost = function (fn, args, cb) {
+    if (fn === "sfxm_getState") {
+      cb({ ok: true, host: "PPRO", hasComp: false, comp: "", time: 0, fps: 24, timecode: "00:00:00:00" });
+    } else realEvalHost(fn, args, cb);
+  };
+  await sleep(700);
+  check("PPRO: no-sequence status", $("aeState").textContent === "No sequence open",
+    $("aeState").textContent);
+  B.evalHost = function (fn, args, cb) {
+    if (fn === "sfxm_getState") {
+      cb({ ok: true, host: "PPRO", hasComp: true, comp: "Main Sequence",
+           time: 10, fps: 24, timecode: "00:00:10:00" });
+    } else realEvalHost(fn, args, cb);
+  };
+  await sleep(700);
+  check("PPRO: playhead + sequence in status bar",
+    $("aeState").textContent === "Playhead 00:00:10:00  \u00b7  Main Sequence",
+    JSON.stringify($("aeState").textContent));
+  check("PPRO: playhead chip", $("playheadChip").textContent === "00:00:10:00",
+    $("playheadChip").textContent);
+  B.evalHost = realEvalHost;
+  await sleep(700);
+
+  /* ================= WAV fallback decoder ================= */
+  console.log("\n── WAV fallback decoder ──");
+
+  function makeWav(opts) {
+    const tag = opts.tag, ch = opts.ch, rate = opts.rate, bits = opts.bits;
+    const data = opts.data;
+    const blockAlign = opts.blockAlign || Math.max(1, ch * Math.ceil((bits || 8) / 8));
+    const byteRate = opts.byteRate || rate * blockAlign;
+    const extra = opts.extra || new Uint8Array(0);
+    const fmtSize = 16 + extra.length;
+    const out = new Uint8Array(12 + 8 + fmtSize + 8 + data.length);
+    const o = new DataView(out.buffer);
+    out.set([0x52, 0x49, 0x46, 0x46], 0);            // RIFF
+    o.setUint32(4, out.length - 8, true);
+    out.set([0x57, 0x41, 0x56, 0x45], 8);            // WAVE
+    out.set([0x66, 0x6d, 0x74, 0x20], 12);           // "fmt "
+    o.setUint32(16, fmtSize, true);
+    const dv2 = new DataView(out.buffer, 20, fmtSize);
+    dv2.setUint16(0, tag, true);
+    dv2.setUint16(2, ch, true);
+    dv2.setUint32(4, rate, true);
+    dv2.setUint32(8, byteRate, true);
+    dv2.setUint16(12, blockAlign, true);
+    dv2.setUint16(14, bits, true);
+    out.set(extra, 20 + 16);
+    const dataOff = 20 + fmtSize;
+    out.set([0x64, 0x61, 0x74, 0x61], dataOff);      // "data"
+    o.setUint32(dataOff + 4, data.length, true);
+    out.set(data, dataOff + 8);
+    return out.buffer;
+  }
+  const approx = (a, b, eps) => Math.abs(a - b) <= (eps || 0.01);
+
+  // PCM16 stereo
+  const pcm16data = new Uint8Array(8);
+  {
+    const dv = new DataView(pcm16data.buffer);
+    dv.setInt16(0, 16384, true);   // +0.5
+    dv.setInt16(2, -16384, true);  // -0.5
+    dv.setInt16(4, 0, true);
+    dv.setInt16(6, -32768, true);  // -1.0
+  }
+  let r = AE.parseWav(makeWav({ tag: 1, ch: 2, rate: 44100, bits: 16, data: pcm16data }));
+  check("PCM16 parses", !!r && r.frames === 2 && r.channels.length === 2, r && r.formatName);
+  check("PCM16 samples", !!r && approx(r.channels[0][0], 0.5, 0.001) &&
+    approx(r.channels[1][0], -0.5, 0.001) && approx(r.channels[1][1], -1, 0.001));
+
+  // PCM8
+  r = AE.parseWav(makeWav({ tag: 1, ch: 1, rate: 8000, bits: 8,
+    data: new Uint8Array([128, 255, 0]) }));
+  check("PCM8 parses", !!r && r.frames === 3, r && r.frames);
+  check("PCM8 samples", !!r && approx(r.channels[0][0], 0, 0.01) &&
+    approx(r.channels[0][1], 127 / 128, 0.01) && approx(r.channels[0][2], -1, 0.01));
+
+  // PCM24
+  const pcm24 = new Uint8Array(6);
+  pcm24[2] = 0x40; pcm24[5] = 0xc0;
+  r = AE.parseWav(makeWav({ tag: 1, ch: 1, rate: 48000, bits: 24, data: pcm24 }));
+  check("PCM24 parses", !!r && r.frames === 2, r && r.frames);
+  check("PCM24 samples", !!r && approx(r.channels[0][0], 0.5, 0.001) &&
+    approx(r.channels[0][1], -0.5, 0.001));
+
+  // float32
+  const f32 = new Uint8Array(8);
+  new DataView(f32.buffer).setFloat32(0, 0.25, true);
+  new DataView(f32.buffer).setFloat32(4, -0.75, true);
+  r = AE.parseWav(makeWav({ tag: 3, ch: 1, rate: 44100, bits: 32, data: f32 }));
+  check("float32 parses", !!r && approx(r.channels[0][0], 0.25, 0.0001) &&
+    approx(r.channels[0][1], -0.75, 0.0001));
+
+  // µ-law — the classic "silent preview" codec Chromium refuses
+  r = AE.parseWav(makeWav({ tag: 6, ch: 1, rate: 8000, bits: 8,
+    data: new Uint8Array([0xff, 0x7f, 0x80, 0x00]) }));
+  check("µ-law parses (Chromium can't)", !!r && r.frames === 4, r && r.formatName);
+  check("µ-law zero codes → 0", !!r && approx(r.channels[0][0], 0, 0.0001) &&
+    approx(r.channels[0][1], 0, 0.0001));
+  check("µ-law peak ≈ +0.98", !!r && approx(r.channels[0][2], 32124 / 32768, 0.005),
+    r && r.channels[0][2]);
+  check("µ-law trough ≈ -0.98", !!r && approx(r.channels[0][3], -32124 / 32768, 0.005));
+
+  // A-law
+  r = AE.parseWav(makeWav({ tag: 7, ch: 1, rate: 8000, bits: 8,
+    data: new Uint8Array([0xd5, 0x2a]) }));
+  check("A-law parses", !!r && r.frames === 2, r && r.frames);
+  check("A-law near-zero + peak", !!r && Math.abs(r.channels[0][0]) < 0.001 &&
+    approx(r.channels[0][1], -32256 / 32768, 0.01), r && r.channels[0][1]);
+
+  // WAVE_FORMAT_EXTENSIBLE wrapping PCM16
+  const guidPcm = new Uint8Array([
+    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00,
+    0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71]);
+  const extExtra = new Uint8Array(24);
+  new DataView(extExtra.buffer).setUint16(0, 22, true);  // cbSize
+  new DataView(extExtra.buffer).setUint16(2, 16, true);  // validBits
+  new DataView(extExtra.buffer).setUint32(4, 3, true);   // channelMask
+  extExtra.set(guidPcm, 8);
+  const extData = new Uint8Array(4);
+  new DataView(extData.buffer).setInt16(0, 8192, true);
+  new DataView(extData.buffer).setInt16(2, -8192, true);
+  r = AE.parseWav(makeWav({ tag: 0xfffe, ch: 1, rate: 44100, bits: 16,
+    data: extData, extra: extExtra }));
+  check("EXTENSIBLE→PCM16 parses", !!r && approx(r.channels[0][0], 0.25, 0.001),
+    r && r.formatName);
+
+  // IMA-ADPCM: header sample 0 / index 0, data byte 0x0F → low nibble 0xF
+  // sign-magnitude: mag 7, step 7 → diff = 1+3+7 = 11 → −11 (sign set)
+  const imaData = new Uint8Array(6);
+  imaData[4] = 0x0f;
+  r = AE.parseWav(makeWav({ tag: 0x11, ch: 1, rate: 44100, bits: 4,
+    data: imaData, blockAlign: 6 }));
+  check("IMA-ADPCM parses", !!r && r.frames === 5, r && (r ? r.frames : null));
+  check("IMA header sample → 0", !!r && approx(r.channels[0][0], 0, 0.0001));
+  check("IMA vector 0xF → -11/32768", !!r && approx(r.channels[0][1], -11 / 32768, 0.0001),
+    r && r.channels[0][1]);
+
+  // MS-ADPCM with the 7 standard coefficient pairs
+  const msCoefs = [256, 0, 512, -256, 0, 0, 192, 64, 240, 0, 460, -208, 392, -232];
+  const msExtra = new Uint8Array(6 + msCoefs.length * 2);
+  {
+    const dv = new DataView(msExtra.buffer);
+    dv.setUint16(0, 18, true);   // cbSize = spb(2)+nCoef(2)+coefs(14)
+    dv.setUint16(2, 10, true);   // samplesPerBlock (decoder derives its own)
+    dv.setUint16(4, 7, true);    // numCoef
+    for (let i = 0; i < msCoefs.length; i++) dv.setInt16(6 + i * 2, msCoefs[i], true);
+  }
+  const msData = new Uint8Array(8); // bpred=0, idelta=16, samp1=0, samp2=0, +1 data byte
+  msData[1] = 16;
+  r = AE.parseWav(makeWav({ tag: 2, ch: 1, rate: 44100, bits: 4,
+    data: msData, blockAlign: 8, extra: msExtra }));
+  check("MS-ADPCM parses", !!r, r && r.formatName);
+  check("MS-ADPCM frames", !!r && r.frames === 4, r && r.frames);
+  check("MS-ADPCM header samples → 0", !!r &&
+    approx(r.channels[0][0], 0, 0.0001) && approx(r.channels[0][1], 0, 0.0001));
+
+  // safety: garbage / truncation never throws
+  check("garbage → null", AE.parseWav(new Uint8Array(128).fill(0x42).buffer) === null);
+  check("tiny buffer → null", AE.parseWav(new ArrayBuffer(10)) === null);
+  const trunc = makeWav({ tag: 1, ch: 1, rate: 44100, bits: 16,
+    data: new Uint8Array(4) });
+  new DataView(trunc).setUint32(40, 1000, true); // data size lies (1000 > actual)
+  const tr = AE.parseWav(trunc);
+  check("truncated data clamps (no crash)", !!tr && tr.frames === 2, tr && tr.frames);
+  check("non-WAV → null", AE.parseWav(
+    new Uint8Array([0x49, 0x44, 0x33, 3, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4]).buffer) === null);
+
   /* ================= drag payload ================= */
   console.log("\n── drag & drop payload ──");
   let dragData = null;
