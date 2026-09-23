@@ -358,7 +358,7 @@ async function main() {
   click($("btnSettings"));
   check("settings modal opens", !$("settingsOverlay").classList.contains("hidden"));
   check("settings shows the name", $("settingsAbout").textContent.indexOf("Anamoul Houqe Nadim") >= 0);
-  check("settings shows v1.0.8 badge (verify install)", $("settingsAbout").textContent.indexOf("v1.0.8") >= 0,
+  check("settings shows v1.0.9 badge (verify install)", $("settingsAbout").textContent.indexOf("v1.0.9") >= 0,
     $("settingsAbout").textContent);
   const igBtn = $("btnInstagram");
   const igLabel = igBtn ? igBtn.textContent.replace(/\s+/g, " ").trim() : "";
@@ -403,6 +403,21 @@ async function main() {
   check("custom colour picker works", document.documentElement.getAttribute("data-accent") === "#bf5af2",
     document.documentElement.getAttribute("data-accent"));
   click(document.querySelector('.accent-swatch[data-accent="#066ce7"]'));
+
+  // 2nd tone — Default | flat ink #0b0b0d
+  console.log("\n── panel tone ──");
+  check("tone row exists with 2 swatches", !!$("toneRow") &&
+    $("toneRow").querySelectorAll(".tone-swatch").length === 2);
+  const inkSw = $("toneRow").querySelector('.tone-swatch[data-tone="ink"]');
+  check("ink swatch labelled #0B0B0D", !!inkSw && inkSw.textContent.indexOf("#0B0B0D") >= 0,
+    inkSw ? inkSw.textContent : "missing");
+  click(inkSw);
+  check("ink tone applied", document.documentElement.getAttribute("data-tone") === "ink");
+  check("ink tone persisted", JSON.parse(window.localStorage.getItem("sfxm.v1")).tone === "ink",
+    JSON.parse(window.localStorage.getItem("sfxm.v1")).tone);
+  click($("toneRow").querySelector('.tone-swatch[data-tone=""]'));
+  check("default tone restored", !document.documentElement.getAttribute("data-tone") &&
+    JSON.parse(window.localStorage.getItem("sfxm.v1")).tone === "");
   check("back to default SFX blue", document.documentElement.getAttribute("data-accent") === "#066ce7");
   click($("settingsOverlay").querySelector("[data-close]"));
   check("settings modal closes", $("settingsOverlay").classList.contains("hidden"));

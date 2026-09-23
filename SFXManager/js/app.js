@@ -466,10 +466,10 @@
     /* ═══════════════════ list rendering ═══════════════════ */
 
     var STAR_SVG =
-        '<svg viewBox="0 0 16 16" width="13" height="13"><path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>';
+        '<svg viewBox="0 0 16 16" width="13" height="13"><path d="M8 1.8l1.95 3.95 4.36.63-3.15 3.07.74 4.34L8 11.82l-3.89 2.03.74-4.34-3.15-3.07 4.36-.63z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>';
 
-    var PLAY_SVG = '<svg class="ico-play" viewBox="0 0 16 16" width="10" height="10"><path d="M4.8 3.2v9.6L12.8 8z" fill="currentColor"/></svg>' +
-        '<svg class="ico-pause" viewBox="0 0 16 16" width="10" height="10"><g fill="currentColor"><rect x="4" y="3.4" width="2.8" height="9.2" rx="1"/><rect x="9.2" y="3.4" width="2.8" height="9.2" rx="1"/></g></svg>';
+    var PLAY_SVG = '<svg class="ico-play" viewBox="0 0 16 16" width="10" height="10"><path d="M5.1 3.4v9.2L12.6 8z" fill="currentColor" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>' +
+        '<svg class="ico-pause" viewBox="0 0 16 16" width="10" height="10"><g fill="currentColor"><rect x="4.1" y="3.5" width="2.9" height="9" rx="1.25"/><rect x="9" y="3.5" width="2.9" height="9" rx="1.25"/></g></svg>';
 
     var TAG_COLORS = { 1: "var(--d1)", 2: "var(--d2)", 3: "var(--d3)", 4: "var(--d4)", 5: "var(--d5)", 6: "var(--d6)" };
 
@@ -706,7 +706,7 @@
 
         menu.innerHTML =
             '<button class="ctx-item" data-act="preview"><span class="ctx-ico">▶</span>Preview<span class="ctx-kbd">Space</span></button>' +
-            '<button class="ctx-item" data-act="add"><span class="ctx-ico">＋</span>Add<span class="ctx-kbd">⏎</span></button>' +
+            '<button class="ctx-item" data-act="add"><span class="ctx-ico"><svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M6 2.1v7.8M2.1 6h7.8"/></svg></span>Add<span class="ctx-kbd">⏎</span></button>' +
             '<button class="ctx-item" data-act="import"><span class="ctx-ico">↓</span>Import to Project</button>' +
             '<div class="ctx-sep"></div>' +
             '<button class="ctx-item" data-act="fav"><span class="ctx-ico">' + (fav ? "★" : "☆") + "</span>" +
@@ -1323,6 +1323,29 @@
         });
     }
 
+    /* ═══════════════════ panel tone (Settings) ═══════════════════ */
+
+    function applyTone(tone, persist) {
+        tone = tone === "ink" ? "ink" : "";
+        if (tone) document.documentElement.setAttribute("data-tone", tone);
+        else document.documentElement.removeAttribute("data-tone");
+        var sw = document.querySelectorAll("#toneRow .tone-swatch");
+        for (var i = 0; i < sw.length; i++) {
+            sw[i].classList.toggle("active", (sw[i].getAttribute("data-tone") || "") === tone);
+        }
+        if (persist) Store.set({ tone: tone });
+    }
+
+    function wireTone() {
+        var row = $("toneRow");
+        if (!row) return;
+        row.addEventListener("click", function (ev) {
+            var b = ev.target.closest(".tone-swatch");
+            if (!b) return;
+            applyTone(b.getAttribute("data-tone") || "", true);
+        });
+    }
+
     /* ═══════════════════ list / grid view ═══════════════════ */
 
     function applyViewMode(mode, persist) {
@@ -1343,6 +1366,7 @@
 
     function wireChrome() {
         wireViewToggle();
+        wireTone();
         $("btnTheme").addEventListener("click", function () {
             var next = Store.get().theme === "light" ? "dark" : "light";
             Store.set({ theme: next });
@@ -1387,6 +1411,7 @@
         applyTheme(st.theme);
         applyAccent(st.accent || "#066ce7", false);
         applyViewMode(st.viewMode);
+        applyTone(st.tone);
         wirePlayer();
         wireKeyboard();
         wireSearch();
