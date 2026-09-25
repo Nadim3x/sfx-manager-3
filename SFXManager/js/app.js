@@ -741,7 +741,7 @@
             else if (act === "add") { selectSound(path, false); addAtPlayhead(path); }
             else if (act === "import") importToProject(path);
             else if (act === "fav") toggleFav(path);
-            else if (act === "reveal") Bridge.revealPath(parentOf(path));
+            else if (act === "reveal") Bridge.revealPath(path);
             else if (act === "copy") copyText(path);
         };
     }
@@ -1308,7 +1308,9 @@
         var picker = $("accentCustom");
         if (picker && picker.value !== hex) picker.value = hex;
         var hexField = $("accentHex");
-        if (hexField && document.activeElement !== hexField) hexField.value = hex.toUpperCase();
+        if (hexField && document.activeElement !== hexField) hexField.value = hex.toUpperCase().replace(/^#/, "");
+        var accentDot = $("accentDot");
+        if (accentDot) accentDot.style.background = hex;
 
         try { AudioEngine.Waveform.draw(); } catch (e) {}
     }
@@ -1318,6 +1320,15 @@
         var root = document.documentElement;
         if (hex) root.style.setProperty("--bg", hex);
         else root.style.removeProperty("--bg");
+        // bright user-picked backgrounds: flip text/surface tokens for contrast
+        if (hex) {
+            var rgb = hexToRgb(hex);
+            var lum = (0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 255;
+            if (lum > 0.55) root.setAttribute("data-bg-contrast", "light");
+            else root.removeAttribute("data-bg-contrast");
+        } else {
+            root.removeAttribute("data-bg-contrast");
+        }
         var swatches = document.querySelectorAll("#bgRow .bg-swatch");
         for (var i = 0; i < swatches.length; i++) {
             var want = normalizeHex(swatches[i].getAttribute("data-bg")) || "";
@@ -1326,16 +1337,24 @@
         var picker = $("bgCustom");
         if (picker && hex && picker.value !== hex) picker.value = hex;
         var hf = $("bgHex");
-        if (hf && document.activeElement !== hf) hf.value = hex ? hex.toUpperCase() : "";
+        if (hf && document.activeElement !== hf) hf.value = hex ? hex.toUpperCase().replace(/^#/, "") : "";
+        var bgDot = $("bgDot");
+        if (bgDot) bgDot.style.background = hex || "var(--bg)";
         if (persist) Store.set({ bgColor: hex });
     }
 
-    function wireHexField(id, apply) {
+    function wireHexField(id, apply, allowEmpty) {
         var f = $(id);
         if (!f) return;
         f.addEventListener("focus", function () { f.classList.remove("bad"); });
         function commit() {
-            var v = normalizeHex(f.value);
+            var raw = String(f.value || "").trim();
+            if (!raw && allowEmpty) {
+                f.classList.remove("bad");
+                apply("");
+                return;
+            }
+            var v = normalizeHex(raw.charAt(0) === "#" ? raw : "#" + raw);
             if (v) {
                 f.classList.remove("bad");
                 apply(v);
@@ -1362,8 +1381,15 @@
         if (picker) {
             picker.addEventListener("input", function () { applyBg(picker.value, true); });
         }
-        wireHexField("bgHex", function (v) { applyBg(v, true); });
-        wireHexField("accentHex", function (v) { applyAccent(v, true); });
+        wireHexField("bgHex", function (v) { applyBg(v, true); }, true);
+        wireHexField("accentHex", function (v) { applyAccent(v, true); }, false);
+        var applyBtn = $("btnApplySettings");
+        if (applyBtn) {
+            applyBtn.addEventListener("click", function () {
+                toast("Settings applied \u2713", "ok");
+                $("settingsOverlay").classList.add("hidden");
+            });
+        }
     }
 
     function wireAccent() {

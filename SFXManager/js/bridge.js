@@ -181,13 +181,38 @@ var Bridge = (function () {
 
     function revealPath(p) {
         if (!p) return;
-        // Opening the file:// URL of a folder shows it in Finder / Explorer.
-        var norm = String(p).replace(/\\/g, "/");
-        if (!/^file:\/\//.test(norm)) {
-            if (/^[A-Za-z]:\//.test(norm)) norm = "file:///" + norm;
-            else norm = "file://" + (norm.charAt(0) === "/" ? "" : "/") + norm;
+        var path = String(p);
+        if (isCEP) {
+            // 1) official CEP call — opens Finder/Explorer with the item selected
+            try {
+                if (window.__adobe_cep__ && typeof window.__adobe_cep__.revealInFileExplorer === "function") {
+                    window.__adobe_cep__.revealInFileExplorer(path);
+                    return;
+                }
+            } catch (e1) {}
+            // 2) OS shell: open -R (macOS) / explorer /select (Windows) / xdg-open (Linux)
+            try {
+                var req = null;
+                if (typeof require === "function") req = require;
+                else if (typeof window.require === "function") req = window.require;
+                else if (typeof cep_node !== "undefined" && cep_node && cep_node.require) req = cep_node.require;
+                if (req) {
+                    var cp = req("child_process");
+                    var plat = (typeof process !== "undefined" && process.platform) || "";
+                    if (plat === "win32") {
+                        var winPath = path.replace(/\//g, "\\").replace(/"/g, "");
+                        cp.exec('explorer /select,"' + winPath + '"');
+                    } else if (plat === "darwin") {
+                        cp.execFile("open", ["-R", path]);
+                    } else {
+                        var parentDir = path.replace(/[\\/][^\\/]+$/, "") || "/";
+                        cp.execFile("xdg-open", [parentDir]);
+                    }
+                    return;
+                }
+            } catch (e2) {}
         }
-        openExternal(norm);
+        // preview/browser has no filesystem to reveal — no-op
     }
 
     /** Read a UTF-8 text file. cb(errStringOrNull, text) */
@@ -390,7 +415,8 @@ var Bridge = (function () {
                             }
                         }
                         for (var j = 0; j < listing.files.length && results.length < limit; j++) {
-                            results.push(listing.files[j]);
+                            var f = listing.files[j];
+                            if (Bridge.AUDIO_EXT.test(String(f.name).toLowerCase())) results.push(f);
                         }
                     }
                     schedule();

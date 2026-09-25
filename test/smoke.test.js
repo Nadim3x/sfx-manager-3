@@ -352,13 +352,34 @@ async function main() {
   check("swatch applies tag", JSON.parse(window.localStorage.getItem("sfxm.v1")).tags[r0.dataset.path] === 3);
   check("context menu closes after choice", $("ctxMenu").classList.contains("hidden"));
 
+  // Reveal in Folder must target the FILE (selected in Finder / Explorer)
+  r0.dispatchEvent(new window.MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+  await sleep(80);
+  let revealedPath = null;
+  const origReveal = window.Bridge.revealPath;
+  window.Bridge.revealPath = function (x) { revealedPath = x; };
+  click($("ctxMenu").querySelector('[data-act="reveal"]'));
+  window.Bridge.revealPath = origReveal;
+  check("reveal in folder fires with the file path", revealedPath === r0.dataset.path,
+    JSON.stringify(revealedPath));
+  check("context menu closes after reveal", $("ctxMenu").classList.contains("hidden"));
+
+  // audio-only listing — .txt and friends never reach All Sounds / search / counts
+  const walked = await new Promise((resolve) => {
+    window.Bridge.walkAudio("/SFX Library", 500, (err, files) => resolve(files || []));
+  });
+  check("walkAudio returns audio only", walked.length > 0 &&
+    walked.every((f) => window.Bridge.isAudioFile(f.name)),
+    "n=" + walked.length + " " + JSON.stringify(walked.map((f) => f.name)));
+  check("txt file excluded from library", !walked.some((f) => /\.txt$/i.test(f.name)));
+
   /* ================= settings, about, theme ================= */
   console.log("\n── settings, about, theme ──");
   check("settings button replaces about", !!$("btnSettings") && !$("btnAbout"));
   click($("btnSettings"));
   check("settings modal opens", !$("settingsOverlay").classList.contains("hidden"));
   check("settings shows the name", $("settingsAbout").textContent.indexOf("Anamoul Houqe Nadim") >= 0);
-  check("settings shows v1.1.0 badge (verify install)", $("settingsAbout").textContent.indexOf("v1.1.0") >= 0,
+  check("settings shows v1.1.1 badge (verify install)", $("settingsAbout").textContent.indexOf("v1.1.1") >= 0,
     $("settingsAbout").textContent);
   const igBtn = $("btnInstagram");
   const igLabel = igBtn ? igBtn.textContent.replace(/\s+/g, " ").trim() : "";
@@ -404,64 +425,66 @@ async function main() {
     document.documentElement.getAttribute("data-accent"));
   click(document.querySelector('.accent-swatch[data-accent="#066ce7"]'));
 
-  // 2nd tone — Default | flat ink #0b0b0d
-  console.log("\n── panel tone ──");
-  check("tone row exists with 2 swatches", !!$("toneRow") &&
-    $("toneRow").querySelectorAll(".tone-swatch").length === 2);
-  const inkSw = $("toneRow").querySelector('.tone-swatch[data-tone="ink"]');
-  check("ink swatch labelled #0B0B0D", !!inkSw && inkSw.textContent.indexOf("#0B0B0D") >= 0,
-    inkSw ? inkSw.textContent : "missing");
-  click(inkSw);
-  check("ink tone applied", document.documentElement.getAttribute("data-tone") === "ink");
-  check("ink tone persisted", JSON.parse(window.localStorage.getItem("sfxm.v1")).tone === "ink",
-    JSON.parse(window.localStorage.getItem("sfxm.v1")).tone);
-  click($("toneRow").querySelector('.tone-swatch[data-tone=""]'));
-  check("default tone restored", !document.documentElement.getAttribute("data-tone") &&
-    JSON.parse(window.localStorage.getItem("sfxm.v1")).tone === "");
-
-  // new settings panel — Buttons Color + Background Color (swatches + hex entry)
-  console.log("\n── buttons / background color ──");
+  // redesigned flat settings panel — ACCENT COLOR + BACKGROUND COLOR + Apply
+  console.log("\n── settings colors ──");
   const btnLabel = $("accentRow").closest(".set-section").querySelector(".set-label").textContent;
-  check("buttons row labelled Buttons Color", btnLabel === "Buttons Color", JSON.stringify(btnLabel));
-  check("buttons hex field exists", !!$("accentHex"));
+  check("accent row labelled ACCENT COLOR", btnLabel === "ACCENT COLOR", JSON.stringify(btnLabel));
+  check("accent choices = 7 swatches + rainbow", $("accentRow").querySelectorAll(".accent-swatch").length === 7 &&
+    $("accentRow").querySelectorAll(".sq-swatch.rainbow").length === 1);
+  check("accent hex field raw (no #)", !!$("accentHex") && $("accentHex").value.indexOf("#") < 0,
+    JSON.stringify($("accentHex") && $("accentHex").value));
   const ah = $("accentHex");
   ah.value = "zzzz";
   ah.dispatchEvent(new window.Event("change", { bubbles: true }));
-  check("invalid buttons hex rejected", ah.classList.contains("bad") &&
+  check("invalid accent hex rejected", ah.classList.contains("bad") &&
     document.documentElement.getAttribute("data-accent") === "#066ce7",
     document.documentElement.getAttribute("data-accent"));
-  ah.value = "#30d158";
+  ah.value = "30D158";
   ah.dispatchEvent(new window.Event("change", { bubbles: true }));
-  check("typed hex applies buttons color",
+  check("raw hex applies accent",
     document.documentElement.getAttribute("data-accent") === "#30d158" &&
-    !ah.classList.contains("bad") &&
     JSON.parse(window.localStorage.getItem("sfxm.v1")).accent === "#30d158",
     document.documentElement.getAttribute("data-accent"));
+  check("accent dot follows color", !!$("accentDot"));
   click(document.querySelector('.accent-swatch[data-accent="#066ce7"]'));
-  check("hex field follows swatch", ah.value === "#066CE7", JSON.stringify(ah.value));
+  check("hex field follows swatch (raw)", ah.value === "066CE7", JSON.stringify(ah.value));
 
   const bgLabel = $("bgRow").closest(".set-section").querySelector(".set-label").textContent;
-  check("background row labelled Background Color", bgLabel === "Background Color", JSON.stringify(bgLabel));
-  check("background swatches + hex exist",
-    $("bgRow").querySelectorAll(".bg-swatch").length >= 5 && !!$("bgHex") && !!$("bgCustom"));
-  check("background defaults to Auto", !document.documentElement.style.getPropertyValue("--bg") &&
+  check("background row labelled BACKGROUND COLOR", bgLabel === "BACKGROUND COLOR", JSON.stringify(bgLabel));
+  check("background choices = 7 swatches + rainbow",
+    $("bgRow").querySelectorAll(".bg-swatch").length === 7 &&
+    $("bgRow").querySelectorAll(".sq-swatch.rainbow").length === 1 &&
+    !!$("bgHex") && !!$("bgCustom"));
+  check("background defaults to AUTO", !document.documentElement.style.getPropertyValue("--bg") &&
     JSON.parse(window.localStorage.getItem("sfxm.v1")).bgColor === "");
-  click($("bgRow").querySelector('.bg-swatch[data-bg="#000000"]'));
-  check("bg swatch applies hex", document.documentElement.style.getPropertyValue("--bg") === "#000000",
+  click($("bgRow").querySelector('.bg-swatch[data-bg="#0b0b0d"]'));
+  check("bg swatch applies hex", document.documentElement.style.getPropertyValue("--bg") === "#0b0b0d",
     document.documentElement.style.getPropertyValue("--bg"));
-  check("bg colour persisted", JSON.parse(window.localStorage.getItem("sfxm.v1")).bgColor === "#000000");
+  check("bg colour persisted", JSON.parse(window.localStorage.getItem("sfxm.v1")).bgColor === "#0b0b0d");
   const bh = $("bgHex");
-  bh.value = "#123456";
+  bh.value = "123456";
   bh.dispatchEvent(new window.Event("change", { bubbles: true }));
-  check("typed hex applies background", document.documentElement.style.getPropertyValue("--bg") === "#123456" &&
+  check("raw hex applies background", document.documentElement.style.getPropertyValue("--bg") === "#123456" &&
     !bh.classList.contains("bad"), document.documentElement.style.getPropertyValue("--bg"));
   bh.value = "nope";
   bh.dispatchEvent(new window.Event("change", { bubbles: true }));
   check("invalid bg hex rejected", bh.classList.contains("bad") &&
     document.documentElement.style.getPropertyValue("--bg") === "#123456");
-  click($("bgRow").querySelector('.bg-swatch[data-bg=""]'));
-  check("Auto resets background", !document.documentElement.style.getPropertyValue("--bg") &&
+  bh.value = "ECECEC";
+  bh.dispatchEvent(new window.Event("change", { bubbles: true }));
+  check("bright bg flips contrast tokens", document.documentElement.getAttribute("data-bg-contrast") === "light",
+    document.documentElement.getAttribute("data-bg-contrast"));
+  bh.value = "";
+  bh.dispatchEvent(new window.Event("change", { bubbles: true }));
+  check("empty bg hex = AUTO reset", !document.documentElement.style.getPropertyValue("--bg") &&
+    !document.documentElement.getAttribute("data-bg-contrast") &&
     JSON.parse(window.localStorage.getItem("sfxm.v1")).bgColor === "");
+  check("apply button exists", !!$("btnApplySettings") &&
+    $("btnApplySettings").textContent.trim() === "Apply changes");
+  click($("btnApplySettings"));
+  check("apply closes settings", $("settingsOverlay").classList.contains("hidden"));
+  check("apply shows confirmation", toasts().some((t) => /Settings applied/.test(t)),
+    JSON.stringify(toasts()));
   check("back to default SFX blue", document.documentElement.getAttribute("data-accent") === "#066ce7");
   click($("settingsOverlay").querySelector("[data-close]"));
   check("settings modal closes", $("settingsOverlay").classList.contains("hidden"));

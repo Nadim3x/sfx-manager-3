@@ -18,6 +18,7 @@ var Mock = (function () {
     var TREE = {
         "Impacts": {
             "Deep Impact 01.wav": [2.4, "impact"],
+            "Release Notes.txt": [0.1, "ui"],
             "Deep Impact 02.wav": [3.1, "impact"],
             "Cinematic Hit Big.wav": [2.8, "impact"],
             "Metal Slam.wav": [1.2, "impact"],
