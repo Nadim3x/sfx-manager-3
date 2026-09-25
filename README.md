@@ -19,6 +19,7 @@ macOS-style interface and a blue `#066CE7` accent.
 | **List / grid views** | Segmented toggle above the list — compact rows or a card grid; remembered per user |
 | **Panel tones** | Settings → Tone: **Default** palette or flat ink **#0B0B0D** (glow gradients off); remembered per user |
 | **Settings — flat redesign** | 340px card: **ACCENT COLOR** + **BACKGROUND COLOR** — 8 square swatches each (white active ring), raw hex fields (no #), colour dots, hints, footer + **Apply changes** CTA; bright backgrounds auto-flip text for contrast |
+| **Flat main UI (Linear/Notion style)** | 38px header with22px accent logo + inline search, ghost icon buttons, 196px sidebar, 34px rows, section dividers in All Sounds, flat waveform with accent tint, full-width **Add to timeline** button, thin playhead status strip; light mode palette matched |
 | **Waveform preview** | Real decoded waveform on canvas — click to scrub, playhead line follows playback |
 | **Playback preview** | Web Audio engine — and it **auto-plays the moment you select a sound**, no play button needed |
 | **Premium Apple UI** | Frosted-glass bars, hairline borders, springy hover states, staggered list animations, light/dark themes |
@@ -44,17 +45,17 @@ context menu with reveal/copy-path.
 
 ### Option A — ZXP package (recommended, signed)
 
-The repo ships a signed **`SFXManager-1.1.1.zxp`** (UCF + W3C XML-DSig,
+The repo ships a signed **`SFXManager-1.1.2.zzp`** (UCF + W3C XML-DSig,
 cert: *Anamoul Houqe Nadim · valid to 2126*).
 
 1. Install any ZXP installer once:
    [Anastasiy’s Extension Manager](https://install.anastasiy.com/) (mac/win) or
    [ZXP Installer by aescripts](https://aescripts.com/learn/zxp-installer/)
-2. Drop **`SFXManager-1.1.1.zxp`** onto it
+2. Drop **`SFXManager-1.1.2.zzp`** onto it
    (self-signed cert → the installer asks you to confirm “unknown publisher” — expected)
 3. Restart After Effects → **Window ▸ SFX Manager**
 
-CLI alternative: `ExManCmd --install SFXManager-1.1.1.zxp`
+CLI alternative: `ExManCmd --install SFXManager-1.1.2.zzp`
 
 ### Option B — one-click folder install
 **macOS:** double-click **`install_mac.command`** · **Windows:** double-click **`install_win.bat`**
@@ -75,9 +76,9 @@ Copy the `SFXManager/` folder to:
 
 ### Re-signing after changes (maintainers)
 ```bash
-python3 tools/zxp.py sign  SFXManager  SFXManager-1.1.1.zxp  \
+python3 tools/zxp.py sign  SFXManager  SFXManager-1.1.2.zzp  \
         certs/SFXManager-signing.key.pem  certs/SFXManager-signing.cert.pem
-python3 tools/zxp.py verify SFXManager-1.1.1.zxp     # ← always run this
+python3 tools/zxp.py verify SFXManager-1.1.2.zzp     # ← always run this
 ```
 The identity lives in `certs/SFXManager-signing.p12` (password `nadim.3x`, git-ignored —
 keep a backup). With it you can also re-create packages with Adobe’s official

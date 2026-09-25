@@ -904,7 +904,7 @@ var AudioEngine = (function () {
                 // idle / decoding shimmer placeholder
                 var idle = styles.getPropertyValue("--wf-idle").trim() || "rgba(255,255,255,.10)";
                 g.fillStyle = idle;
-                var bw = 3 * dpr, gap = 5 * dpr, n = Math.floor(W / (bw + gap));
+                var bw = 2 * dpr, gap = 1 * dpr, n = Math.floor(W / (bw + gap));
                 for (var i = 0; i < n; i++) {
                     var hh = (H * 0.18) + (Math.sin(i * 0.7) * 0.5 + 0.5) * H * 0.14;
                     var xx = i * (bw + gap) + gap;
@@ -924,6 +924,17 @@ var AudioEngine = (function () {
 
             var accent = styles.getPropertyValue("--accent").trim() || "#066ce7";
             var accentSoft = styles.getPropertyValue("--wf-unplayed").trim() || "rgba(var(--accent-rgb), .45)";
+
+            // flat accent tint fill behind the played region
+            if (posFrac > 0) {
+                try {
+                    var aR = parseInt(accent.slice(1, 3), 16) || 0,
+                        aG = parseInt(accent.slice(3, 5), 16) || 0,
+                        aB = parseInt(accent.slice(5, 7), 16) || 0;
+                    g.fillStyle = "rgba(" + aR + "," + aG + "," + aB + ", .10)";
+                    g.fillRect(0, 0, posFrac * W, H);
+                } catch (eTint) {}
+            }
 
             var grad = g.createLinearGradient(0, 0, 0, H);
             grad.addColorStop(0, accent);
@@ -963,8 +974,7 @@ var AudioEngine = (function () {
                 var hgt = Math.max(dpr, yBot - yTop);
 
                 var centerFrac = (fx + 0.5 / n);
-                if (centerFrac <= posFrac) g.fillStyle = playedGrad;
-                else g.fillStyle = accentSoft;
+                g.fillStyle = centerFrac <= posFrac ? accent : accentSoft;
 
                 g.fillRect(x, yTop, barW - dpr, hgt);
             }

@@ -179,18 +179,35 @@ var Bridge = (function () {
         try { window.open(u, "_blank"); } catch (eOpen) {}
     }
 
+    /**
+     * Show in Folder — open the OS file manager with the audio file selected.
+     * Recipe (user spec): child_process.exec + path; strip any file:/// prefix,
+     * decodeURIComponent() the path, then:
+     *   win32  → explorer.exe /select,"<path>"
+     *   darwin → open -R "<path>"
+     *   linux  → xdg-open "<dirname>"
+     * Manifest must keep --enable-nodejs + --mixed-context for require().
+     */
     function revealPath(p) {
         if (!p) return;
-        var path = String(p);
+        var raw = String(p);
+        // 1) strip file:/// (file://) prefix; file:///C:/… → C:/…
+        var cleaned = raw.replace(/^file:\/\//, "");
+        if (/^\/[A-Za-z]:/.test(cleaned)) cleaned = cleaned.slice(1);
+        // 2) decodeURIComponent (tolerant of bad % sequences like %zz)
+        var decoded = cleaned;
+        try {
+            decoded = decodeURIComponent(cleaned);
+        } catch (eDec) {
+            decoded = cleaned.replace(/(?:%[0-9A-Fa-f]{2})+/g, function (run) {
+                var bytes = [];
+                for (var i = 0; i < run.length; i += 3) bytes.push(parseInt(run.substr(i + 1, 2), 16));
+                try { return new TextDecoder("utf-8").decode(new Uint8Array(bytes)); }
+                catch (eTxt) { return run; }
+            });
+        }
         if (isCEP) {
-            // 1) official CEP call — opens Finder/Explorer with the item selected
-            try {
-                if (window.__adobe_cep__ && typeof window.__adobe_cep__.revealInFileExplorer === "function") {
-                    window.__adobe_cep__.revealInFileExplorer(path);
-                    return;
-                }
-            } catch (e1) {}
-            // 2) OS shell: open -R (macOS) / explorer /select (Windows) / xdg-open (Linux)
+            // 3) Node child_process.exec + path  (primary — user recipe)
             try {
                 var req = null;
                 if (typeof require === "function") req = require;
@@ -198,21 +215,36 @@ var Bridge = (function () {
                 else if (typeof cep_node !== "undefined" && cep_node && cep_node.require) req = cep_node.require;
                 if (req) {
                     var cp = req("child_process");
+                    var pathMod = req("path");
+                    // prefer whichever candidate actually exists on disk:
+                    // decoded (URL-style paths) vs raw (literal %20 file names)
+                    var target = decoded;
+                    try {
+                        var fsMod = req("fs");
+                        if (!fsMod.existsSync(decoded) && fsMod.existsSync(cleaned)) target = cleaned;
+                    } catch (eFs) {}
+                    target = target.replace(/"/g, "");
                     var plat = (typeof process !== "undefined" && process.platform) || "";
                     if (plat === "win32") {
-                        var winPath = path.replace(/\//g, "\\").replace(/"/g, "");
-                        cp.exec('explorer /select,"' + winPath + '"');
+                        var winPath = pathMod.normalize(target).replace(/\//g, "\\");
+                        cp.exec('explorer.exe /select,"' + winPath + '"');
                     } else if (plat === "darwin") {
-                        cp.execFile("open", ["-R", path]);
+                        cp.exec('open -R "' + target + '"');
                     } else {
-                        var parentDir = path.replace(/[\\/][^\\/]+$/, "") || "/";
-                        cp.execFile("xdg-open", [parentDir]);
+                        cp.exec('xdg-open "' + pathMod.dirname(target) + '"');
                     }
                     return;
                 }
-            } catch (e2) {}
+            } catch (eNode) {}
+            // 4) fallback: CEP built-in reveal
+            try {
+                if (window.__adobe_cep__ && typeof window.__adobe_cep__.revealInFileExplorer === "function") {
+                    window.__adobe_cep__.revealInFileExplorer(decoded);
+                    return;
+                }
+            } catch (eCep) {}
         }
-        // preview/browser has no filesystem to reveal — no-op
+        // preview/browser: no filesystem to reveal — no-op
     }
 
     /** Read a UTF-8 text file. cb(errStringOrNull, text) */

@@ -260,7 +260,7 @@ async function main() {
   check("add button enabled after selection", !$("btnAdd").disabled);
 
   check("btnAdd label is Add only",
-    $("btnAdd").querySelector(".pb-label").textContent.trim() === "Add" &&
+    $("btnAdd").querySelector(".pb-label").textContent.trim() === "Add to timeline" &&
     !/Add at Playhead/.test($("btnAdd").textContent),
     JSON.stringify($("btnAdd").querySelector(".pb-label").textContent));  click($("btnAdd"));
   await sleep(300);
@@ -376,10 +376,12 @@ async function main() {
   /* ================= settings, about, theme ================= */
   console.log("\n── settings, about, theme ──");
   check("settings button replaces about", !!$("btnSettings") && !$("btnAbout"));
+  check("search sits in the header", !!$("searchBox") && !!$("searchInput") &&
+    $("topbar").contains($("searchBox")));
   click($("btnSettings"));
   check("settings modal opens", !$("settingsOverlay").classList.contains("hidden"));
   check("settings shows the name", $("settingsAbout").textContent.indexOf("Anamoul Houqe Nadim") >= 0);
-  check("settings shows v1.1.1 badge (verify install)", $("settingsAbout").textContent.indexOf("v1.1.1") >= 0,
+  check("settings shows v1.1.2 badge (verify install)", $("settingsAbout").textContent.indexOf("v1.1.2") >= 0,
     $("settingsAbout").textContent);
   const igBtn = $("btnInstagram");
   const igLabel = igBtn ? igBtn.textContent.replace(/\s+/g, " ").trim() : "";

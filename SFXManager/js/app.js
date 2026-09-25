@@ -401,7 +401,15 @@
 
     function setListHeader(title, path, count) {
         $("listTitle").textContent = title;
-        $("listPath").textContent = path ? decodeName(path) : "";
+        var looksPath = typeof path === "string" && /^([A-Za-z]:[\\/]|\/)/.test(path);
+        var sub = "";
+        if (path) {
+            if (looksPath) sub = typeof count === "number"
+                ? count + " sounds \u00b7 " + decodeName(baseNameFull(path))
+                : decodeName(path);
+            else sub = path;
+        }
+        $("listPath").textContent = sub;
         $("listPath").title = path || "";
         if (typeof count === "number") {
             $("listCount").textContent = count;
@@ -492,9 +500,18 @@
             "No audio files in this folder.");
 
         var showFolder = S.view !== "folder";
+        var lastGroup = null;
 
         for (var i = 0; i < items.length && i < 4000; i++) {
             var it = items[i];
+            // section divider labels between folders (All Sounds view only)
+            if (S.view === "all") {
+                var gname = decodeName(baseNameFull(parentOf(it.path)));
+                if (gname && gname !== lastGroup) {
+                    lastGroup = gname;
+                    html.push('<div class="list-group">' + escHtml(gname) + "</div>");
+                }
+            }
             var tag = Store.getTag(it.path);
             var fav = Store.isFavorite(it.path);
             var sel = it.path === S.selectedPath;
