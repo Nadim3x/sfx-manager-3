@@ -2133,3 +2133,16 @@ html[data-bg-contrast="light"] {
   background: #22c55e; box-shadow: none;
 }
 .sb-hints { color: var(--text-3); opacity: .75; }
+
+/* ══════════════════════════════════════════════════════════════
+   Preview sliders fill the control row (stretch to the right edge)
+   ═════════════════════════════════════════════════════════════ */
+
+.ctrl-row .ctrl-flex { display: none; }
+.ctrl-group.vol, .ctrl-group.spd { flex: 1 1 auto; min-width: 0; }
+.ctrl-row .ctrl-group.vol input[type="range"],
+.ctrl-row .ctrl-group.spd input[type="range"] {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 48px;
+}

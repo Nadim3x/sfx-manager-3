@@ -678,7 +678,9 @@
             toast(Bridge.hostApp() === "PPRO" ? "Open a sequence first" : "Open a composition first", "err");
             return;
         }
-        Bridge.evalHost("sfxm_addAtPlayhead", [path], function (res) {
+        // pass the panel's preview volume so the clip lands at that level
+        var volPct = Math.round(Store.get().volume * 100);
+        Bridge.evalHost("sfxm_addAtPlayhead", [path, volPct], function (res) {
             if (res && res.ok) {
                 Store.pushRecent(path, baseNameFull(path));
                 refreshCounts();
@@ -709,6 +711,15 @@
     }
 
     /* ═══════════════════ context menu ═══════════════════ */
+
+    /** Guarantee a complete absolute path (folder + file name) for OS calls. */
+    function absolutePath(p) {
+        p = String(p || "");
+        if (/^([A-Za-z]:[\\/]|\/|\\\\)/.test(p)) return p;
+        var root = Store.get().root || Store.get().lastFolder || "";
+        if (root) return String(root).replace(/[\\/]$/, "") + "/" + p;
+        return p;
+    }
 
     function openContextMenu(ev, path) {
         var menu = $("ctxMenu");
@@ -758,7 +769,7 @@
             else if (act === "add") { selectSound(path, false); addAtPlayhead(path); }
             else if (act === "import") importToProject(path);
             else if (act === "fav") toggleFav(path);
-            else if (act === "reveal") Bridge.revealPath(path);
+            else if (act === "reveal") Bridge.revealPath(absolutePath(path));
             else if (act === "copy") copyText(path);
         };
     }

@@ -188,13 +188,25 @@ var Bridge = (function () {
      *   linux  → xdg-open "<dirname>"
      * Manifest must keep --enable-nodejs + --mixed-context for require().
      */
+    /**
+     * Show in Folder (debug spec):
+     *  1) caller passes the COMPLETE ABSOLUTE path (folder + file name)
+     *  2) Node via window.cep_node.require first — bare require() can be
+     *     hijacked by bundlers; fall back to require only if needed
+     *  3) Windows: normalize to backslashes and
+     *       spawn('explorer.exe', ['/select,"<path>"'], {shell:true, detached:true})
+     *     (handles commas + spaces in paths)
+     *  4) any Node failure → ExtendScript fallback:
+     *       new File("<path>").parent.execute()
+     */
     function revealPath(p) {
         if (!p) return;
-        var raw = String(p);
-        // 1) strip file:/// (file://) prefix; file:///C:/… → C:/…
+        var raw = String(p).replace(/^\s+|\s+$/g, "");
+        if (!raw) return;
+        // strip file:/// prefix; file:///C:/… → C:/…
         var cleaned = raw.replace(/^file:\/\//, "");
         if (/^\/[A-Za-z]:/.test(cleaned)) cleaned = cleaned.slice(1);
-        // 2) decodeURIComponent (tolerant of bad % sequences like %zz)
+        // decodeURIComponent — tolerant of bad % sequences (%zz etc.)
         var decoded = cleaned;
         try {
             decoded = decodeURIComponent(cleaned);
@@ -206,45 +218,58 @@ var Bridge = (function () {
                 catch (eTxt) { return run; }
             });
         }
-        if (isCEP) {
-            // 3) Node child_process.exec + path  (primary — user recipe)
-            try {
-                var req = null;
-                if (typeof require === "function") req = require;
-                else if (typeof window.require === "function") req = window.require;
-                else if (typeof cep_node !== "undefined" && cep_node && cep_node.require) req = cep_node.require;
-                if (req) {
-                    var cp = req("child_process");
-                    var pathMod = req("path");
-                    // prefer whichever candidate actually exists on disk:
-                    // decoded (URL-style paths) vs raw (literal %20 file names)
-                    var target = decoded;
-                    try {
-                        var fsMod = req("fs");
-                        if (!fsMod.existsSync(decoded) && fsMod.existsSync(cleaned)) target = cleaned;
-                    } catch (eFs) {}
-                    target = target.replace(/"/g, "");
-                    var plat = (typeof process !== "undefined" && process.platform) || "";
-                    if (plat === "win32") {
-                        var winPath = pathMod.normalize(target).replace(/\//g, "\\");
-                        cp.exec('explorer.exe /select,"' + winPath + '"');
-                    } else if (plat === "darwin") {
-                        cp.exec('open -R "' + target + '"');
-                    } else {
-                        cp.exec('xdg-open "' + pathMod.dirname(target) + '"');
-                    }
-                    return;
+        if (!isCEP) return; // live preview has no filesystem
+
+        // ── 2) Node, bundler-safe ─────────────────────────────────────
+        try {
+            var nodeRequire = (window.cep_node && window.cep_node.require)
+                ? window.cep_node.require
+                : (typeof require === "function" ? require : null);
+            if (nodeRequire) {
+                var cp = nodeRequire("child_process");
+                var pathMod = nodeRequire("path");
+                // prefer whichever candidate exists: decoded vs raw literal %20 name
+                var target = decoded;
+                try {
+                    var fsMod = nodeRequire("fs");
+                    if (!fsMod.existsSync(decoded) && fsMod.existsSync(cleaned)) target = cleaned;
+                } catch (eFs) {}
+                target = target.replace(/"/g, "");
+                var plat = (typeof process !== "undefined" && process.platform) || "";
+                if (plat === "win32") {
+                    var winPath = pathMod.normalize(target).replace(/\//g, "\\");
+                    var child = cp.spawn("explorer.exe",
+                        ['/select,"' + winPath + '"'], { shell: true, detached: true });
+                    if (child && typeof child.unref === "function") child.unref();
+                } else if (plat === "darwin") {
+                    var child2 = cp.spawn("open", ["-R", target], { detached: true });
+                    if (child2 && typeof child2.unref === "function") child2.unref();
+                } else {
+                    var child3 = cp.spawn("xdg-open", [pathMod.dirname(target)], { detached: true });
+                    if (child3 && typeof child3.unref === "function") child3.unref();
                 }
-            } catch (eNode) {}
-            // 4) fallback: CEP built-in reveal
-            try {
-                if (window.__adobe_cep__ && typeof window.__adobe_cep__.revealInFileExplorer === "function") {
-                    window.__adobe_cep__.revealInFileExplorer(decoded);
-                    return;
-                }
-            } catch (eCep) {}
-        }
-        // preview/browser: no filesystem to reveal — no-op
+                return;
+            }
+        } catch (eNode) { /* fall through to ExtendScript */ }
+
+        // ── 3) ExtendScript fallback: open the containing folder ──────
+        try {
+            if (window.__adobe_cep__ && typeof window.__adobe_cep__.evalScript === "function") {
+                var jsxPath = decoded.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+                window.__adobe_cep__.evalScript(
+                    'new File("' + jsxPath + '").parent.execute();',
+                    function () {}
+                );
+                return;
+            }
+        } catch (eJsx) { /* fall through */ }
+
+        // ── 4) last resort: CEP built-in ──────────────────────────────
+        try {
+            if (window.__adobe_cep__ && typeof window.__adobe_cep__.revealInFileExplorer === "function") {
+                window.__adobe_cep__.revealInFileExplorer(decoded);
+            }
+        } catch (eCep) {}
     }
 
     /** Read a UTF-8 text file. cb(errStringOrNull, text) */

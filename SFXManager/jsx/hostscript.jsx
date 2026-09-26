@@ -291,7 +291,7 @@
      * Import the sound (reusing an existing project item when possible)
      * and add it as a layer starting exactly at the playhead.
      */
-    function sfxm_addAtPlayhead(path) {
+    function sfxm_addAtPlayhead(path, volPct) {
         try {
             var file = new File(path);
             if (!file.exists) return fail("File not found on disk.");
@@ -322,6 +322,18 @@
 
             // Make sure audio is on for the new layer.
             try { layer.audioEnabled = true; } catch (e1) {}
+
+            // Apply the panel's preview volume to the clip (as dB levels).
+            try {
+                if (typeof volPct === "number") {
+                    var vpct = volPct;
+                    if (vpct < 0) vpct = 0;
+                    if (vpct > 200) vpct = 200;
+                    var vdb = vpct <= 0 ? -96 : 20 * (Math.log(vpct / 100) / Math.LN10);
+                    var lv = layer.property("Audio").property("Audio Levels");
+                    if (lv) lv.setValue(vdb);
+                }
+            } catch (eVol) {}
 
             // Select it so the user sees it immediately.
             for (var i = 1; i <= comp.numLayers; i++) comp.layers[i].selected = false;

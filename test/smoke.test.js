@@ -262,8 +262,18 @@ async function main() {
   check("btnAdd label is Add only",
     $("btnAdd").querySelector(".pb-label").textContent.trim() === "Add to timeline" &&
     !/Add at Playhead/.test($("btnAdd").textContent),
-    JSON.stringify($("btnAdd").querySelector(".pb-label").textContent));  click($("btnAdd"));
+    JSON.stringify($("btnAdd").querySelector(".pb-label").textContent));
+  const addCalls = [];
+  const realEvalAdd = window.Bridge.evalHost;
+  window.Bridge.evalHost = function (fn, args, cb) { addCalls.push({ fn: fn, args: args }); return realEvalAdd(fn, args, cb); };
+  click($("btnAdd"));
+  window.Bridge.evalHost = realEvalAdd;
   await sleep(300);
+  check("add passes absolute path + preview volume to host",
+    addCalls.some((c) => c.fn === "sfxm_addAtPlayhead" &&
+      /^([A-Za-z]:[\\\/]|\/)/.test(String(c.args[0])) &&
+      typeof c.args[1] === "number" && c.args[1] >= 0 && c.args[1] <= 200),
+    JSON.stringify(addCalls.map((c) => ({ fn: c.fn, args: c.args }))));
   const toasts = () => Array.from($("toastHost").children).map((t) => t.textContent);
   check("add shows success toast", toasts().some((t) => /Added/.test(t)), JSON.stringify(toasts()));
   // recent = the 2 previewed sounds (add dedupes, doesn't grow)
@@ -362,6 +372,8 @@ async function main() {
   window.Bridge.revealPath = origReveal;
   check("reveal in folder fires with the file path", revealedPath === r0.dataset.path,
     JSON.stringify(revealedPath));
+  check("reveal path is absolute", /^([A-Za-z]:[\\\/]|\/)/.test(String(revealedPath)),
+    JSON.stringify(revealedPath));
   check("context menu closes after reveal", $("ctxMenu").classList.contains("hidden"));
 
   // audio-only listing — .txt and friends never reach All Sounds / search / counts
@@ -381,7 +393,7 @@ async function main() {
   click($("btnSettings"));
   check("settings modal opens", !$("settingsOverlay").classList.contains("hidden"));
   check("settings shows the name", $("settingsAbout").textContent.indexOf("Anamoul Houqe Nadim") >= 0);
-  check("settings shows v1.1.2 badge (verify install)", $("settingsAbout").textContent.indexOf("v1.1.2") >= 0,
+  check("settings shows v1.1.3 badge (verify install)", $("settingsAbout").textContent.indexOf("v1.1.3") >= 0,
     $("settingsAbout").textContent);
   const igBtn = $("btnInstagram");
   const igLabel = igBtn ? igBtn.textContent.replace(/\s+/g, " ").trim() : "";
