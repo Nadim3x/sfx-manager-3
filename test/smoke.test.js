@@ -393,7 +393,7 @@ async function main() {
   click($("btnSettings"));
   check("settings modal opens", !$("settingsOverlay").classList.contains("hidden"));
   check("settings shows the name", $("settingsAbout").textContent.indexOf("Anamoul Houqe Nadim") >= 0);
-  check("settings shows v1.1.3 badge (verify install)", $("settingsAbout").textContent.indexOf("v1.1.3") >= 0,
+  check("settings shows v1.1.4 badge (verify install)", $("settingsAbout").textContent.indexOf("v1.1.4") >= 0,
     $("settingsAbout").textContent);
   const igBtn = $("btnInstagram");
   const igLabel = igBtn ? igBtn.textContent.replace(/\s+/g, " ").trim() : "";
@@ -577,6 +577,46 @@ async function main() {
   check("hostscript detects Premiere", hostSrc.indexOf("function isPremiere") >= 0);
   check("hostscript places clips via overwriteClip", hostSrc.indexOf("overwriteClip") >= 0);
   check("hostscript reads Premiere playhead", hostSrc.indexOf("getPlayerPosition") >= 0);
+  check("hostscript: AE importFile only inside AE branches",
+    (hostSrc.match(/app\.project\.importFile\(/g) || []).length === 2,
+    String((hostSrc.match(/app\.project\.importFile\(/g) || []).length));
+  check("hostscript: both Premiere paths call pproImportFile",
+    (hostSrc.match(/= pproImportFile\(path, file\)/g) || []).length === 2);
+
+  // Execute the hostscript against a mock PREMIERE app (no importFile at all!)
+  const OrigFile = window.File;
+  const hadApp = "app" in window;
+  const origApp = window.app;
+  const ifCalls = [];
+  const pproKids = [];
+  window.File = function (pp) {
+    this.fsName = String(pp);
+    this.exists = true;
+    this.name = String(pp).replace(/\\/g, "/").split("/").pop();
+  };
+  window.app = {
+    name: "Premiere Pro",
+    project: {
+      activeSequence: null, // makes isPremiere() true
+      rootItem: { children: pproKids },
+      importFiles: function (list, suppress, destBin, asSeq) {
+        ifCalls.push({ list: list, suppress: suppress, asSeq: asSeq });
+        pproKids.push({ name: String(list[0]).split("/").pop(), getMediaPath: function () { return String(list[0]); } });
+      }
+      // deliberately NO app.project.importFile — that is the bug being tested
+    }
+  };
+  window.eval(hostSrc);
+  check("hostscript exports sfxm_importToProject", typeof window.sfxm_importToProject === "function");
+  const pproImp = JSON.parse(window.sfxm_importToProject("/SFX Library/Botanica V4/Button/Click Soft.wav"));
+  check("PPRO import works without app.project.importFile", pproImp.ok === true,
+    JSON.stringify(pproImp));
+  check("PPRO import calls importFiles (plural)",
+    ifCalls.length === 1 && ifCalls[0].list.length === 1 &&
+    ifCalls[0].suppress === true && ifCalls[0].asSeq === false,
+    JSON.stringify(ifCalls));
+  if (hadApp) window.app = origApp; else delete window.app;
+  window.File = OrigFile;
 
   const realEvalHost = B.evalHost;
   B.evalHost = function (fn, args, cb) {

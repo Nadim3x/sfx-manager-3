@@ -148,6 +148,24 @@
         try { return walk(app.project.rootItem.children); } catch (e) { return null; }
     }
 
+    /* Premiere Pro: app.project.importFile does NOT exist there (AE-only) —
+       calling it throws "app.project.importFile is not a function".
+       PPRO import API:
+         project.importFiles(fileArray, suppressDialogs, destBin, insertAsSequence)
+       which returns nothing, so locate the ProjectItem afterwards via
+       findPPItem() (retry once after a short sleep for slow imports). */
+    function pproImportFile(path, file) {
+        var fs = "";
+        try { fs = String(file.fsName); } catch (eFs) { fs = String(path); }
+        app.project.importFiles([fs], true, app.project.rootItem, false);
+        var item = findPPItem(path);
+        if (!item) {
+            try { $.sleep(150); } catch (eSl) {}
+            item = findPPItem(path);
+        }
+        return item;
+    }
+
     function trackFree(track, tSec) {
         try {
             var clips = track.clips;
@@ -192,7 +210,7 @@
             try { exName = String(existing.name || baseName(path)); } catch (e) { exName = baseName(path); }
             return ok('"name":' + jstr(exName) + ',"imported":false');
         }
-        var item = app.project.importFile(new ImportOptions(file));
+        var item = pproImportFile(path, file);
         if (!item) return fail("Import failed.");
         var nm = "";
         try { nm = String(item.name || baseName(path)); } catch (e2) { nm = baseName(path); }
@@ -206,7 +224,7 @@
         var pi = findPPItem(path);
         var importedNow = false;
         if (!pi) {
-            pi = app.project.importFile(new ImportOptions(file));
+            pi = pproImportFile(path, file);
             importedNow = true;
         }
         if (!pi) return fail("Premiere Pro could not import this file.");
