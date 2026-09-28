@@ -393,7 +393,7 @@ async function main() {
   click($("btnSettings"));
   check("settings modal opens", !$("settingsOverlay").classList.contains("hidden"));
   check("settings shows the name", $("settingsAbout").textContent.indexOf("Anamoul Houqe Nadim") >= 0);
-  check("settings shows v1.1.4 badge (verify install)", $("settingsAbout").textContent.indexOf("v1.1.4") >= 0,
+  check("settings shows v1.1.5 badge (verify install)", $("settingsAbout").textContent.indexOf("v1.1.5") >= 0,
     $("settingsAbout").textContent);
   const igBtn = $("btnInstagram");
   const igLabel = igBtn ? igBtn.textContent.replace(/\s+/g, " ").trim() : "";
@@ -512,6 +512,40 @@ async function main() {
   check("theme → light", document.documentElement.getAttribute("data-theme") === "light");
   click($("btnTheme"));
   check("theme → dark", document.documentElement.getAttribute("data-theme") === "dark");
+
+  /* ============ theme-scoped background (dark pick ≠ light bg) ============ */
+  console.log("\n── theme-scoped background ──");
+  const getSt = () => JSON.parse(window.localStorage.getItem("sfxm.v1"));
+  const inlineBg = () => document.documentElement.style.getPropertyValue("--bg");
+  click($("bgRow").querySelector('.bg-swatch[data-bg="#161618"]'));
+  check("dark: custom bg applied inline", inlineBg() === "#161618", inlineBg());
+  check("dark: custom bg stored in bgColor", getSt().bgColor === "#161618");
+  click($("btnTheme")); // → light
+  check("light: bg override dropped → theme default (white)",
+    inlineBg() === "", "inline=" + JSON.stringify(inlineBg()));
+  check("light: data-theme", document.documentElement.getAttribute("data-theme") === "light");
+  check("light: dark selection preserved in bgColor", getSt().bgColor === "#161618",
+    JSON.stringify(getSt().bgColor));
+  check("light: no light override stored", getSt().bgColorLight === "",
+    JSON.stringify(getSt().bgColorLight));
+  click($("bgRow").querySelector('.bg-swatch[data-bg="#ececef"]'));
+  check("light: light pick stored in bgColorLight (not bgColor)",
+    getSt().bgColorLight === "#ececef" && getSt().bgColor === "#161618",
+    getSt().bgColorLight + " / " + getSt().bgColor);
+  check("light: light pick applied inline", inlineBg() === "#ececef", inlineBg());
+  click($("btnTheme")); // → dark
+  check("dark again: original dark bg restored", inlineBg() === "#161618", inlineBg());
+  click($("btnTheme")); // → light
+  check("light again: light bg kept", inlineBg() === "#ececef", inlineBg());
+  // cleanup: auto bg in both themes, back to dark
+  let bhex = $("bgHex");
+  bhex.value = ""; bhex.dispatchEvent(new window.Event("change", { bubbles: true }));
+  click($("btnTheme")); // → dark
+  bhex = $("bgHex");
+  bhex.value = ""; bhex.dispatchEvent(new window.Event("change", { bubbles: true }));
+  check("cleanup: bg auto in both themes", getSt().bgColor === "" && getSt().bgColorLight === "",
+    getSt().bgColor + " / " + getSt().bgColorLight);
+  check("cleanup: no inline --bg", inlineBg() === "", inlineBg());
 
   /* ================= narrow drawer (vertical layout) ================= */
   console.log("\n── narrow drawer ──");

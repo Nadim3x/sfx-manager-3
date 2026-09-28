@@ -1343,6 +1343,12 @@
         try { AudioEngine.Waveform.draw(); } catch (e) {}
     }
 
+    /** Background override active for a given theme ("" = follow theme default). */
+    function bgForTheme(theme, st) {
+        st = st || Store.get();
+        return theme === "light" ? (st.bgColorLight || "") : (st.bgColor || "");
+    }
+
     function applyBg(hex, persist) {
         hex = normalizeHex(hex) || "";
         var root = document.documentElement;
@@ -1368,7 +1374,13 @@
         if (hf && document.activeElement !== hf) hf.value = hex ? hex.toUpperCase().replace(/^#/, "") : "";
         var bgDot = $("bgDot");
         if (bgDot) bgDot.style.background = hex || "var(--bg)";
-        if (persist) Store.set({ bgColor: hex });
+        if (persist) {
+            // scope the pick to the theme it was chosen in: light mode must
+            // fall back to the light default (white) instead of keeping a
+            // dark-mode colour, and vice-versa
+            if (Store.get().theme === "light") Store.set({ bgColorLight: hex });
+            else Store.set({ bgColor: hex });
+        }
     }
 
     function wireHexField(id, apply, allowEmpty) {
@@ -1481,6 +1493,7 @@
             var next = Store.get().theme === "light" ? "dark" : "light";
             Store.set({ theme: next });
             applyTheme(next);
+            applyBg(bgForTheme(next), false); // swap to this theme's bg override ("" → theme default)
             AudioEngine.Waveform.draw();
         });
 
@@ -1522,7 +1535,7 @@
         applyAccent(st.accent || "#066ce7", false);
         applyViewMode(st.viewMode);
         applyTone(st.tone);
-        applyBg(st.bgColor);
+        applyBg(bgForTheme(st.theme, st), false);
         wirePlayer();
         wireKeyboard();
         wireSearch();
