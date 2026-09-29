@@ -182,6 +182,8 @@ def thumb():
 
 logo(1024, "logo-1024.png")
 logo(512, "logo-512.png")
-cover()
+# cover-1280x720.png comes from REAL panel screenshots:
+#   LD_LIBRARY_PATH=/tmp/al2023/lib node tools/shoot.js && python3 tools/compose_cover.py
+# (calling cover() here would overwrite it with the old abstract art)
 thumb()
 print("done →", OUT)
